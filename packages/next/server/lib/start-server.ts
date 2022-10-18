@@ -11,6 +11,7 @@ interface StartServerOptions extends NextServerOptions {
 export function startServer(opts: StartServerOptions) {
   let requestHandler: RequestHandler
 
+  // 创建http服务器
   const server = http.createServer((req, res) => {
     return requestHandler(req, res)
   })
@@ -54,19 +55,20 @@ export function startServer(opts: StartServerOptions) {
           ? 'localhost'
           : opts.hostname
 
+      // 返回的是NextServer类实例对象
       const app = next({
         ...opts,
         hostname,
-        customServer: false,
-        httpServer: server,
-        port: addr && typeof addr === 'object' ? addr.port : port,
+        customServer: false, // 不是自定义服务器
+        httpServer: server, // 创建出的server
+        port: addr && typeof addr === 'object' ? addr.port : port, // 端口号
       })
 
-      requestHandler = app.getRequestHandler()
+      requestHandler = app.getRequestHandler() // 获取app的请求处理函数
       upgradeHandler = app.getUpgradeHandler()
-      resolve(app)
+      resolve(app) // 将app传出去
     })
 
-    server.listen(port, opts.hostname)
+    server.listen(port, opts.hostname) // 执行http服务器的listen方法
   })
 }

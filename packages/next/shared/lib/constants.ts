@@ -1,6 +1,7 @@
+// ***
 export type ValueOf<T> = Required<T>[keyof T]
 
-export const COMPILER_NAMES = {
+export const COMPILER_NAMES = { // ***
   client: 'client',
   server: 'server',
   edgeServer: 'edge-server',
@@ -15,16 +16,17 @@ export const COMPILER_INDEXES: {
   [COMPILER_NAMES.server]: 1,
   [COMPILER_NAMES.edgeServer]: 2,
 } as const
+// ***
 
 export const PHASE_EXPORT = 'phase-export'
 export const PHASE_PRODUCTION_BUILD = 'phase-production-build'
 export const PHASE_PRODUCTION_SERVER = 'phase-production-server'
 export const PHASE_DEVELOPMENT_SERVER = 'phase-development-server'
 export const PHASE_TEST = 'phase-test'
-export const PAGES_MANIFEST = 'pages-manifest.json'
+export const PAGES_MANIFEST = 'pages-manifest.json' // ***
 export const APP_PATHS_MANIFEST = 'app-paths-manifest.json'
 export const APP_PATH_ROUTES_MANIFEST = 'app-path-routes-manifest.json'
-export const BUILD_MANIFEST = 'build-manifest.json'
+export const BUILD_MANIFEST = 'build-manifest.json' // ***
 export const APP_BUILD_MANIFEST = 'app-build-manifest.json'
 export const SUBRESOURCE_INTEGRITY_MANIFEST = 'subresource-integrity-manifest'
 export const FONT_LOADER_MANIFEST = 'font-loader-manifest'
@@ -39,9 +41,9 @@ export const MIDDLEWARE_MANIFEST = 'middleware-manifest.json'
 export const DEV_MIDDLEWARE_MANIFEST = '_devMiddlewareManifest.json'
 export const REACT_LOADABLE_MANIFEST = 'react-loadable-manifest.json'
 export const FONT_MANIFEST = 'font-manifest.json'
-export const SERVER_DIRECTORY = 'server'
+export const SERVER_DIRECTORY = 'server' // ***
 export const SERVERLESS_DIRECTORY = 'serverless'
-export const CONFIG_FILES = ['next.config.js', 'next.config.mjs']
+export const CONFIG_FILES = ['next.config.js', 'next.config.mjs'] // ***
 export const BUILD_ID_FILE = 'BUILD_ID'
 export const BLOCKED_PAGES = ['/_document', '/_app', '/_error']
 export const CLIENT_PUBLIC_FILES_PATH = 'public'
@@ -69,7 +71,7 @@ export const MIDDLEWARE_REACT_LOADABLE_MANIFEST =
   'middleware-react-loadable-manifest'
 
 // static/runtime/main.js
-export const CLIENT_STATIC_FILES_RUNTIME_MAIN = `main`
+export const CLIENT_STATIC_FILES_RUNTIME_MAIN = `main` // ***
 export const CLIENT_STATIC_FILES_RUNTIME_MAIN_APP = `${CLIENT_STATIC_FILES_RUNTIME_MAIN}-app`
 // static/runtime/react-refresh.js
 export const CLIENT_STATIC_FILES_RUNTIME_REACT_REFRESH = `react-refresh`

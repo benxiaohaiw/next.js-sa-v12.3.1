@@ -209,6 +209,7 @@ function getEdgeMatcher(
   return matcher
 }
 
+// 继承
 export default class NextNodeServer extends BaseServer {
   private imageResponseCache?: ResponseCache
 
@@ -846,7 +847,8 @@ export default class NextNodeServer extends BaseServer {
       )
     }
 
-    return renderToHTML(
+    // 渲染成html字符串，然后返回
+    return renderToHTML( // 在render.tsx中
       req.originalRequest,
       res.originalResponse,
       pathname,
@@ -943,7 +945,10 @@ export default class NextNodeServer extends BaseServer {
     params: Params | null
     isAppPath: boolean
   }): Promise<FindComponentsResult | null> {
-    const paths: string[] = [pathname]
+    // ***
+    const paths: string[] = [pathname] // ['/']
+    // ***
+
     if (query.amp) {
       // try serving a static AMP version first
       paths.unshift(
@@ -962,7 +967,10 @@ export default class NextNodeServer extends BaseServer {
 
     for (const pagePath of paths) {
       try {
-        const components = await loadComponents({
+        // ***
+        // 具体可以查看load-components.ts下具体解释说明
+        // ***
+        const components = await loadComponents({ // 从dist目录下加载组件
           distDir: this.distDir,
           pathname: pagePath,
           serverless: !this.renderOpts.dev && this._isLikeServerless,
@@ -981,7 +989,7 @@ export default class NextNodeServer extends BaseServer {
         }
 
         return {
-          components,
+          components, // 返回信息
           query: {
             ...(components.getStaticProps
               ? ({
@@ -1184,6 +1192,9 @@ export default class NextNodeServer extends BaseServer {
     const rewrites = this.generateRewrites({ restrictedRedirectPaths })
     const catchAllMiddleware = this.generateCatchAllMiddlewareRoute()
 
+    // ***捕获所有路由***
+    // 这个路由是尤为关键且重要的
+    // ***
     const catchAllRoute: Route = {
       match: getPathMatch('/:path*'),
       type: 'route',
@@ -1221,7 +1232,10 @@ export default class NextNodeServer extends BaseServer {
         }
 
         try {
-          await this.render(req, res, pathname, query, parsedUrl, true)
+          // 执行render函数
+          await this.render(req, res, pathname, query, parsedUrl, true) // 在当前类中
+          // 尤为重要的
+          // ***
 
           return {
             finished: true,
@@ -1317,7 +1331,6 @@ export default class NextNodeServer extends BaseServer {
       stat: (f) => fs.promises.stat(f),
     }
   }
-
   private normalizeReq(
     req: BaseNextRequest | IncomingMessage
   ): BaseNextRequest {
@@ -1330,13 +1343,15 @@ export default class NextNodeServer extends BaseServer {
     return res instanceof ServerResponse ? new NodeNextResponse(res) : res
   }
 
+  // ***
   public getRequestHandler(): NodeRequestHandler {
     const handler = super.getRequestHandler()
     return async (req, res, parsedUrl) => {
-      return handler(this.normalizeReq(req), this.normalizeRes(res), parsedUrl)
+      return handler(this.normalizeReq(req), this.normalizeRes(res), parsedUrl) // 最终还是在base-server.ts下进行核心的操作处理啦 ~
     }
   }
 
+  // ***
   public async render(
     req: BaseNextRequest | IncomingMessage,
     res: BaseNextResponse | ServerResponse,
@@ -1345,7 +1360,8 @@ export default class NextNodeServer extends BaseServer {
     parsedUrl?: NextUrlWithParsedQuery,
     internal = false
   ): Promise<void> {
-    return super.render(
+    // 执行父类的render函数
+    return super.render( // 在base-server.ts下
       this.normalizeReq(req),
       this.normalizeRes(res),
       pathname,

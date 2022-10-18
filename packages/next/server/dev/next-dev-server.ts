@@ -94,6 +94,7 @@ export interface Options extends ServerOptions {
   isNextDevCommand?: boolean
 }
 
+// 继承
 export default class DevServer extends Server {
   private devReady: Promise<void>
   private setDevReady?: Function
@@ -149,7 +150,7 @@ export default class DevServer extends Server {
 
   constructor(options: Options) {
     super({ ...options, dev: true })
-    this.renderOpts.dev = true
+    this.renderOpts.dev = true // ***
     ;(this.renderOpts as any).ErrorDebug = ReactDevOverlay
     this.devReady = new Promise((resolve) => {
       this.setDevReady = resolve
@@ -651,8 +652,9 @@ export default class DevServer extends Server {
     }
   }
 
+  // prepare函数
   async prepare(): Promise<void> {
-    setGlobal('distDir', this.distDir)
+    setGlobal('distDir', this.distDir) // 设置dist目录
     setGlobal('phase', PHASE_DEVELOPMENT_SERVER)
 
     await this.verifyTypeScript()
@@ -671,6 +673,7 @@ export default class DevServer extends Server {
       this.router = new Router(this.generateRoutes())
     }
 
+    // 创建热重新加载者实例对象
     this.hotReloader = new HotReloader(this.dir, {
       pagesDir: this.pagesDir,
       distDir: this.distDir,
@@ -682,7 +685,7 @@ export default class DevServer extends Server {
     })
     await super.prepare()
     await this.addExportPathMapRoutes()
-    await this.hotReloader.start(true)
+    await this.hotReloader.start(true) // 执行start函数
     await this.startWatcher()
     this.setDevReady!()
 
@@ -1363,7 +1366,8 @@ export default class DevServer extends Server {
       }
       this.fontLoaderManifest = super.getFontLoaderManifest()
 
-      return super.findPageComponents({ pathname, query, params, isAppPath })
+      // // 在next-server.ts中
+      return super.findPageComponents({ pathname, query, params, isAppPath }) // 父类中的查找页面组件
     } catch (err) {
       if ((err as any).code !== 'ENOENT') {
         throw err

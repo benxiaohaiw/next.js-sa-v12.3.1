@@ -41,12 +41,13 @@ type HeadHTMLProps = React.DetailedHTMLProps<
 
 type HeadProps = OriginProps & HeadHTMLProps
 
+// 获取文档应该包含的文件
 function getDocumentFiles(
   buildManifest: BuildManifest,
   pathname: string,
   inAmpMode: boolean
 ): DocumentFiles {
-  const sharedFiles: readonly string[] = getPageFiles(buildManifest, '/_app')
+  const sharedFiles: readonly string[] = getPageFiles(buildManifest, '/_app') // 默认包含的
   const pageFiles: readonly string[] =
     process.env.NEXT_RUNTIME !== 'edge' && inAmpMode
       ? []
@@ -166,6 +167,7 @@ function getDynamicChunks(
   })
 }
 
+// 获取script组件组成的数组
 function getScripts(
   context: HtmlProps,
   props: OriginProps,
@@ -175,7 +177,7 @@ function getScripts(
     assetPrefix,
     buildManifest,
     isDevelopment,
-    devOnlyCacheBusterQueryString,
+    devOnlyCacheBusterQueryString, // ?t=xxx
     disableOptimizedLoading,
     crossOrigin,
   } = context
@@ -184,6 +186,16 @@ function getScripts(
   const lowPriorityScripts = buildManifest.lowPriorityFiles?.filter((file) =>
     file.endsWith('.js')
   )
+
+  /**
+   * 
+    <script src="/_next/static/chunks/main.js?ts=1666019324446" defer=""></script>
+    <script src="/_next/static/chunks/pages/_app.js?ts=1666019324446" defer=""></script>
+    <script src="/_next/static/chunks/pages/index.js?ts=1666019324446" defer=""></script>
+    <script src="/_next/static/development/_buildManifest.js?ts=1666019324446" defer=""></script>
+    <script src="/_next/static/development/_ssgManifest.js?ts=1666019324446" defer=""></script>
+   * 
+   */
 
   return [...normalScripts, ...lowPriorityScripts].map((file) => {
     return (
@@ -408,7 +420,7 @@ function getFontLoaderLinks(
 //   import { Component } from 'react'
 //
 // More info: https://github.com/vercel/next.js/pull/40686
-export class Head extends React.Component<HeadProps> {
+export class Head extends React.Component<HeadProps> { // Head组件渲染<head>...</head>的
   static contextType = HtmlContext
 
   context!: React.ContextType<typeof HtmlContext>
@@ -767,9 +779,51 @@ export class Head extends React.Component<HeadProps> {
       return child
     })
 
+    /**
+     * 
+     *  ❯ cat .next/build-manifest.json
+      {
+        "polyfillFiles": [
+          "static/chunks/polyfills.js"
+        ],
+        "devFiles": [
+          "static/chunks/react-refresh.js"
+        ],
+        "ampDevFiles": [
+          "static/chunks/webpack.js",
+          "static/chunks/amp.js"
+        ],
+        "lowPriorityFiles": [
+          "static/development/_buildManifest.js",
+          "static/development/_ssgManifest.js"
+        ],
+        "rootMainFiles": [],
+        "pages": { // 这些是服务端返回html字符串时html中的链接地址的
+          "/": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/index.js"
+          ],
+          "/_app": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/_app.js"
+          ],
+          "/_error": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/_error.js"
+          ]
+        },
+        "ampFirstPages": []
+      }
+    * 
+    */
+
+    // 获取文档中应该包含的files
     const files: DocumentFiles = getDocumentFiles(
-      this.context.buildManifest,
-      this.context.__NEXT_DATA__.page,
+      this.context.buildManifest, // 在上方
+      this.context.__NEXT_DATA__.page, // '/'
       process.env.NEXT_RUNTIME !== 'edge' && inAmpMode
     )
 
@@ -892,7 +946,7 @@ export class Head extends React.Component<HeadProps> {
               this.getDynamicChunks(files)}
             {!disableOptimizedLoading &&
               !disableRuntimeJS &&
-              this.getScripts(files)}
+              this.getScripts(files)/** ***获取由file转成的script组件*** */}
 
             {optimizeCss && this.getCssLinks(files)}
             {optimizeCss && <noscript data-n-css={this.props.nonce ?? ''} />}
@@ -1100,7 +1154,7 @@ export class NextScript extends React.Component<OriginProps> {
               />
             ))
           : null}
-        {disableRuntimeJS ? null : (
+        {disableRuntimeJS ? null : ( // 伴随页面字符串返回给浏览器的这一部分的数据就是在这里进行加工组成的
           <script
             id="__NEXT_DATA__"
             type="application/json"
@@ -1172,7 +1226,7 @@ export function Main() {
  */
 export default class Document<P = {}> extends React.Component<
   DocumentProps & P
-> {
+> { // Document组件
   /**
    * `getInitialProps` hook returns the context object with the addition of `renderPage`.
    * `renderPage` callback executes `React` rendering logic synchronously to support server-rendering wrappers
@@ -1181,6 +1235,7 @@ export default class Document<P = {}> extends React.Component<
     return ctx.defaultGetInitialProps(ctx)
   }
 
+  // 渲染Document组件
   render() {
     return (
       <Html>

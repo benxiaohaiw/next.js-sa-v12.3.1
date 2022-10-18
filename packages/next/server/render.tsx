@@ -362,6 +362,7 @@ function serializeError(
   }
 }
 
+// ***
 export async function renderToHTML(
   req: IncomingMessage,
   res: ServerResponse,
@@ -401,12 +402,28 @@ export async function renderToHTML(
     App,
   } = renderOpts
 
+  // ******
+  // 这个参数是在base-server.ts中的renderToResponseWithComponents方法做的doRender函数里面所临时整合的renderOpts
+  // 而这个Documnet正是在next-server.ts中的findPageComponents函数中loadComponents函数执行的结果
+  // 所以这个Document参数其实就是pages/_document.tsx导出的Document类组件啦 ~
+  // 只不过区别是.next/server/pages/_document.js的默认导出 - 因为在load-components.ts中的loadComponents函数中就是从编译
+  // 后的.next/server/pages/_document.js这个文件中使用require函数动态加载的，然后取出默认导出default属性作为Documnet属性
+  // 所以这个属性就是编译后的文件.next/server/pages/_document.js中默认导出的Documnet类组件啦 ~
+  // ***
   let Document = renderOpts.Document
+  // ***
 
   // Component will be wrapped by ServerComponentWrapper for RSC
   let Component: React.ComponentType<{}> | ((props: any) => JSX.Element) =
-    renderOpts.Component
-  const OriginComponent = Component
+    renderOpts.Component // ***
+  // ***
+  // 这个也是在load-components.ts中loadComponents函数中按照req的url动态引入的，也是编译后的文件中引入的
+  // 比如// / -> .next/server/pages/index.js
+  // 是按照.next/server/pages-manifest.json文件中对应的来进行引入的
+  // ***
+  // ***
+  const OriginComponent = Component // ***
+  // ***
 
   let serverComponentsInlinedTransformStream: TransformStream<
     Uint8Array,
@@ -597,6 +614,8 @@ export async function renderToHTML(
     hasPageGetInitialProps ||
     (!defaultAppGetInitialProps && !isSSG)
   )
+
+  // 创建服务器路由类对象
   const router = new ServerRouter(
     pathname,
     query,
@@ -957,6 +976,11 @@ export async function renderToHTML(
     }
 
     try {
+      // ***
+      // 调用getServerSideProps钩子函数
+      // 它就是当前req的url路径对应的文件中暴露出来的这个getServerSideProps钩子函数
+      // 在这里执行了一下
+      // ***
       data = await getServerSideProps({
         req: req as IncomingMessage & {
           cookies: NextApiRequestCookies
@@ -1049,6 +1073,9 @@ export async function renderToHTML(
       )
     }
 
+    // ***
+    // 合并
+    // ***
     props.pageProps = Object.assign({}, props.pageProps, (data as any).props)
     ;(renderOpts as any).pageData = props
   }
@@ -1125,6 +1152,9 @@ export async function renderToHTML(
    * coalescing, and ISR continue working as intended.
    */
   const generateStaticHTML = supportsDynamicHTML !== true
+
+  // ***
+  // ******
   const renderDocument = async () => {
     // For `Document`, there are two cases that we don't support:
     // 1. Using `Document.getInitialProps` in the Edge runtime.
@@ -1366,7 +1396,9 @@ export async function renderToHTML(
     }
   }
 
-  const documentResult = await renderDocument()
+  // ***
+  // ***
+  const documentResult = await renderDocument() // ***
   if (!documentResult) {
     return null
   }
@@ -1399,10 +1431,15 @@ export async function renderToHTML(
     locales,
     runtimeConfig,
   } = renderOpts
+
+  // ***
+  // 准备好数据
   const htmlProps: HtmlProps = {
+    // ***
+    // ***
     __NEXT_DATA__: {
       props, // The result of getInitialProps
-      page: pathname, // The rendered page
+      page: pathname, // The rendered page // ***以'/'为例子***
       query, // querystring parsed / passed by the user
       buildId, // buildId is used to facilitate caching of page bundles, we send it to the client so that pageloader knows where to load bundles
       assetPrefix: assetPrefix === '' ? undefined : assetPrefix, // send assetPrefix to the client side when configured, otherwise don't sent in the resulting HTML
@@ -1462,14 +1499,16 @@ export async function renderToHTML(
     fontLoaderManifest: renderOpts.fontLoaderManifest,
   }
 
+  // 准备好document组件
   const document = (
     <AmpStateContext.Provider value={ampState}>
       <HtmlContext.Provider value={htmlProps}>
-        {documentResult.documentElement(htmlProps)}
+        {documentResult.documentElement(htmlProps)/** 上面的renderDocument函数执行的结果 */}
       </HtmlContext.Provider>
     </AmpStateContext.Provider>
   )
 
+  // 使用ReactDOMServer包将document组件渲染为html字符串
   const documentHTML = await renderToStaticMarkup(document)
 
   if (process.env.NODE_ENV !== 'production') {
@@ -1501,7 +1540,7 @@ export async function renderToHTML(
 
   const prefix: Array<string> = []
   if (!documentHTML.startsWith(DOCTYPE)) {
-    prefix.push(DOCTYPE)
+    prefix.push(DOCTYPE) // 补充"<!DOCTYPE html>"
   }
   prefix.push(renderTargetPrefix)
   if (inAmpMode) {
@@ -1522,6 +1561,7 @@ export async function renderToHTML(
     return new RenderResult(optimizedHtml)
   }
 
+  // 返回渲染结果，其实就是html的字符串
   return new RenderResult(
     chainStreams(streams).pipeThrough(
       createBufferedTransformStream(postOptimize)

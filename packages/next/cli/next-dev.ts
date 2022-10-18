@@ -54,7 +54,7 @@ const nextDev: cliCommand = (argv) => {
     process.exit(0)
   }
 
-  const dir = getProjectDir(args._[0])
+  const dir = getProjectDir(args._[0]) // 获取工程目录
 
   // Check if pages dir exists and warn if not
   if (!existsSync(dir)) {
@@ -78,7 +78,7 @@ const nextDev: cliCommand = (argv) => {
     }
   }
 
-  const port = getPort(args)
+  const port = getPort(args) // 获取端口号
   // If neither --port nor PORT were specified, it's okay to retry new ports.
   const allowRetry =
     args['--port'] === undefined && process.env.PORT === undefined
@@ -87,12 +87,13 @@ const nextDev: cliCommand = (argv) => {
   // some set-ups that rely on listening on other interfaces
   const host = args['--hostname']
 
+  // 开发服务器选项参数
   const devServerOptions = {
     allowRetry,
     dev: true,
     dir,
     hostname: host,
-    isNextDevCommand: true,
+    isNextDevCommand: true, // 是开发命令行
     port,
   }
 
@@ -112,14 +113,15 @@ const nextDev: cliCommand = (argv) => {
       return r
     })
   } else {
-    startServer(devServerOptions)
+    startServer(devServerOptions) // 开启服务器
       .then(async (app) => {
         const appUrl = `http://${app.hostname}:${app.port}`
         startedDevelopmentServer(appUrl, `${host || '0.0.0.0'}:${app.port}`)
         // Start preflight after server is listening and ignore errors:
         preflight().catch(() => {})
         // Finalize server bootup:
-        await app.prepare()
+        await app.prepare() // 准备
+        // ***
       })
       .catch((err) => {
         if (err.code === 'EADDRINUSE') {

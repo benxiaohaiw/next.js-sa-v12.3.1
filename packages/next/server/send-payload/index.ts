@@ -37,6 +37,8 @@ export function sendEtagResponse(
   return false
 }
 
+// 发送渲染结果
+// 也就是直接res.end
 export async function sendRenderResult({
   req,
   res,

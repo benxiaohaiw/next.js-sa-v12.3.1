@@ -52,13 +52,14 @@ export class NextServer {
   }
 
   getRequestHandler(): RequestHandler {
+    // 这个就是返回的请求处理函数
     return async (
       req: IncomingMessage,
       res: ServerResponse,
       parsedUrl?: UrlWithParsedQuery
     ) => {
       const requestHandler = await this.getServerRequestHandler()
-      return requestHandler(req, res, parsedUrl)
+      return requestHandler(req, res, parsedUrl) // 做了个中转，交给它处理
     }
   }
 
@@ -115,9 +116,10 @@ export class NextServer {
     return server.serveStatic(...args)
   }
 
+  // prepare函数
   async prepare() {
     const server = await this.getServer()
-    return server.prepare()
+    return server.prepare() // DevServer类实例对象的prepare函数
   }
 
   async close() {
@@ -128,6 +130,7 @@ export class NextServer {
   private async createServer(options: DevServerOptions): Promise<Server> {
     if (options.dev) {
       const DevServer = require('./dev/next-dev-server').default
+      // 创建DevServer类实例对象
       return new DevServer(options)
     }
     const ServerImplementation = await getServerImpl()
@@ -145,7 +148,9 @@ export class NextServer {
   private async getServer() {
     if (!this.serverPromise) {
       setTimeout(getServerImpl, 10)
+      // 首先加载配置
       this.serverPromise = this.loadConfig().then(async (conf) => {
+        // 创建一个DevServer类实例对象
         this.server = await this.createServer({
           ...this.options,
           conf,
@@ -153,7 +158,7 @@ export class NextServer {
         if (this.preparedAssetPrefix) {
           this.server.setAssetPrefix(this.preparedAssetPrefix)
         }
-        return this.server
+        return this.server // 返回这个DevServer类实例对象
       })
     }
     return this.serverPromise
@@ -164,11 +169,14 @@ export class NextServer {
     if (!this.reqHandlerPromise) {
       this.reqHandlerPromise = this.getServer().then((server) =>
         server.getRequestHandler().bind(server)
+        // 获取这个创建的DevServer类实例对象的请求处理函数
       )
     }
     return this.reqHandlerPromise
   }
 }
+
+// 这个就是start-server.ts中执行的next函数
 
 // This file is used for when users run `require('next')`
 function createServer(options: NextServerOptions): NextServer {
@@ -196,7 +204,7 @@ function createServer(options: NextServerOptions): NextServer {
     ;(process.env as any).__NEXT_REACT_ROOT = 'true'
   }
 
-  return new NextServer(options)
+  return new NextServer(options) // 创建一个NextServer类实例对象
 }
 
 // Support commonjs `require('next')`

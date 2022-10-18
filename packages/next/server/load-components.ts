@@ -108,37 +108,83 @@ export async function loadComponents({
     } as LoadComponentsReturnType
   }
 
+  // 文档模块
   let DocumentMod = {}
+  // App模块
   let AppMod = {}
   if (!isAppPath) {
+    // 使用require函数从dist目录下动态引入加载进来，赋值
     ;[DocumentMod, AppMod] = await Promise.all([
       Promise.resolve().then(() =>
-        requirePage('/_document', distDir, serverless, false)
+        requirePage('/_document', distDir, serverless, false) // .next/server/pages/_document.js
       ),
       Promise.resolve().then(() =>
-        requirePage('/_app', distDir, serverless, false)
+        requirePage('/_app', distDir, serverless, false) // .next/server/pages/_app.js
       ),
     ])
   }
   const ComponentMod = await Promise.resolve().then(() =>
-    requirePage(pathname, distDir, serverless, isAppPath)
+    requirePage(pathname, distDir, serverless, isAppPath) // / -> .next/server/pages/index.js
   )
+
+  /**
+   * 
+   *  ❯ cat .next/build-manifest.json
+      {
+        "polyfillFiles": [
+          "static/chunks/polyfills.js"
+        ],
+        "devFiles": [
+          "static/chunks/react-refresh.js"
+        ],
+        "ampDevFiles": [
+          "static/chunks/webpack.js",
+          "static/chunks/amp.js"
+        ],
+        "lowPriorityFiles": [
+          "static/development/_buildManifest.js",
+          "static/development/_ssgManifest.js"
+        ],
+        "rootMainFiles": [],
+        "pages": { // 这些是服务端返回html字符串时html中的链接地址的
+          "/": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/index.js"
+          ],
+          "/_app": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/_app.js"
+          ],
+          "/_error": [
+            "static/chunks/webpack.js",
+            "static/chunks/main.js",
+            "static/chunks/pages/_error.js"
+          ]
+        },
+        "ampFirstPages": []
+      }
+   * 
+   */
 
   const [buildManifest, reactLoadableManifest, serverComponentManifest] =
     await Promise.all([
-      require(join(distDir, BUILD_MANIFEST)),
+      require(join(distDir, BUILD_MANIFEST)), // .next/build-manifest.json
       require(join(distDir, REACT_LOADABLE_MANIFEST)),
       hasServerComponents
         ? require(join(distDir, 'server', FLIGHT_MANIFEST + '.json'))
         : null,
     ])
 
-  const Component = interopDefault(ComponentMod)
-  const Document = interopDefault(DocumentMod)
-  const App = interopDefault(AppMod)
+  const Component = interopDefault(ComponentMod) // ***
+  const Document = interopDefault(DocumentMod) // ***
+  const App = interopDefault(AppMod) // ***
 
+  // / -> index.ts中所暴露的钩子函数
   const { getServerSideProps, getStaticProps, getStaticPaths } = ComponentMod
 
+  // 返回这些信息
   return {
     App,
     Document,

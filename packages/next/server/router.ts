@@ -128,7 +128,10 @@ export default class Router {
     this.useFileSystemPublicRoutes = useFileSystemPublicRoutes
 
     // Perform the initial route compilation.
-    this.compiledRoutes = this.compileRoutes()
+    this.compiledRoutes = this.compileRoutes() // 准备这个初始路由编译
+    // ***
+    // // 产生的路由中尤为重要的两个分别是page check route和catch all route
+    // 在编译路由中重要的就是这个page checker
     this.needsRecompilation = false
   }
 
@@ -212,7 +215,7 @@ export default class Router {
         ? [
             {
               type: 'route',
-              name: 'page checker',
+              name: 'page checker', // ***非常之重要***
               match: getPathMatch('/:path*'),
               fn: async (req, res, params, parsedUrl, upgradeHead) => {
                 const pathname = removeTrailingSlash(parsedUrl.pathname || '/')
@@ -221,13 +224,14 @@ export default class Router {
                 }
 
                 if (await this.checkPage(req, pathname)) {
+                  // 这个捕获全部路由是在next-server.ts中的NextNodeServer类中生成路由函数中的
                   return this.catchAllRoute.fn(
                     req,
                     res,
                     params,
                     parsedUrl,
                     upgradeHead
-                  )
+                  ) // 尤为重要的
                 }
 
                 return { finished: false }
@@ -329,6 +333,7 @@ export default class Router {
     return false
   }
 
+  // ***
   async execute(
     req: BaseNextRequest,
     res: BaseNextResponse,
@@ -337,8 +342,12 @@ export default class Router {
   ): Promise<boolean> {
     // Only recompile if the routes need to be recompiled, this should only
     // happen in development.
-    if (this.needsRecompilation) {
-      this.compiledRoutes = this.compileRoutes()
+    if (this.needsRecompilation) { // 需要重新编译
+      this.compiledRoutes = this.compileRoutes() // 编译路由
+      // ***
+      // 执行此方法的在上面的constructor函数中也是执行了一次
+      // ***
+      // 产生的路由中尤为重要的两个分别是page check route和catch all route
       this.needsRecompilation = false
     }
 
@@ -447,6 +456,11 @@ export default class Router {
             addRequestMeta(req, '_nextDataNormalizing', true)
           }
           parsedUrlUpdated.pathname = matchPathname
+
+          // ***
+          // // 产生的路由中尤为重要的两个分别是page check route和catch all route
+          // ***
+          // 重要的是执行page checker中的fn函数
           const result = await route.fn(
             req,
             res,
@@ -458,6 +472,8 @@ export default class Router {
           if (isNextDataNormalizing) {
             addRequestMeta(req, '_nextDataNormalizing', false)
           }
+
+          // 完成直接返回true
           if (result.finished) {
             return true
           }

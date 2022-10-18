@@ -24,16 +24,28 @@ export function getPagePath(
   const serverBuildPath = join(
     distDir,
     serverless && !dev ? SERVERLESS_DIRECTORY : SERVER_DIRECTORY
-  )
+  ) // .next/server
   let appPathsManifest: undefined | PagesManifest
 
   if (appDirEnabled) {
     appPathsManifest = require(join(serverBuildPath, APP_PATHS_MANIFEST))
   }
-  const pagesManifest = require(join(
+  const pagesManifest = require(join( // 引入.next/server/pages-manifest.json
     serverBuildPath,
     PAGES_MANIFEST
   )) as PagesManifest
+
+  /**
+   * 
+   *  ❯ cat .next/server/pages-manifest.json
+      {
+        "/_app": "pages/_app.js",
+        "/_error": "pages/_error.js",
+        "/_document": "pages/_document.js",
+        "/": "pages/index.js"
+      }
+   * 
+   */
 
   try {
     page = denormalizePagePath(normalizePagePath(page))

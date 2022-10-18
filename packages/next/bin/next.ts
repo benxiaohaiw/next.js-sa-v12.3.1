@@ -14,7 +14,7 @@ import { commands } from '../lib/commands'
   }
 })
 
-const defaultCommand = 'dev'
+const defaultCommand = 'dev' // 默认命令行就是dev - next dev
 const args = arg(
   {
     // Types
@@ -92,8 +92,8 @@ if (process.env.NODE_ENV) {
   }
 }
 
-;(process.env as any).NODE_ENV = process.env.NODE_ENV || defaultEnv
-;(process.env as any).NEXT_RUNTIME = 'nodejs'
+;(process.env as any).NODE_ENV = process.env.NODE_ENV || defaultEnv // 'dev'
+;(process.env as any).NEXT_RUNTIME = 'nodejs' // 运行时为nodejs
 
 // In node.js runtime, react has to be required after NODE_ENV is set,
 // so that the correct dev/prod bundle could be loaded into require.cache.
@@ -125,6 +125,8 @@ if (!process.env.NEXT_MANUAL_SIG_HANDLE) {
   process.on('SIGINT', () => process.exit(0))
 }
 
+// 直接commands['dev']()执行函数
+// 在lib/commands.ts中对应cli/next-dev
 commands[command]()
   .then((exec) => exec(forwardedArgs))
   .then(() => {

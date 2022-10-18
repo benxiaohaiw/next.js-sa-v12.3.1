@@ -430,7 +430,12 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     this.appPathsManifest = this.getAppPathsManifest()
 
     this.customRoutes = this.getCustomRoutes()
-    this.router = new Router(this.generateRoutes())
+
+    // ***
+    // 执行生成路由函数
+    // 创建路由器实例对象
+    // ***
+    this.router = new Router(this.generateRoutes()) // 在next-server.ts下
     this.setAssetPrefix(assetPrefix)
 
     this.responseCache = this.getResponseCache({ dev })
@@ -441,6 +446,8 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     console.error(err)
   }
 
+  // ***
+  // 处理每次请求的核心函数
   private async handleRequest(
     req: BaseNextRequest,
     res: BaseNextResponse,
@@ -737,7 +744,9 @@ export default abstract class Server<ServerOptions extends Options = Options> {
       }
 
       res.statusCode = 200
-      return await this.run(req, res, parsedUrl)
+      return await this.run(req, res, parsedUrl) // 直接执行run函数
+      // ***
+      // 执行run函数是尤为重要的
     } catch (err: any) {
       if (
         (err && typeof err === 'object' && err.code === 'ERR_INVALID_URL') ||
@@ -757,8 +766,10 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     }
   }
 
+  // ***
   public getRequestHandler(): BaseRequestHandler {
-    return this.handleRequest.bind(this)
+    return this.handleRequest.bind(this) // 这个就是处理每次请求的核心函数
+    // ***
   }
 
   protected async handleUpgrade(
@@ -826,6 +837,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     return appPathRoutes
   }
 
+  // 重要函数
   protected async run(
     req: BaseNextRequest,
     res: BaseNextResponse,
@@ -834,7 +846,9 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     this.handleCompression(req, res)
 
     try {
-      const matched = await this.router.execute(req, res, parsedUrl)
+      // 执行router.execute函数
+      // 整个过程就是这么的简单
+      const matched = await this.router.execute(req, res, parsedUrl) // server/router.ts
       if (matched) {
         return
       }
@@ -859,26 +873,30 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     }
   ): Promise<void> {
     const isBotRequest = isBot(partialContext.req.headers['user-agent'] || '')
-    const ctx = {
+    // ******
+    const ctx = { // ***
       ...partialContext,
       renderOpts: {
         ...this.renderOpts,
         supportsDynamicHTML: !isBotRequest,
       },
     } as const
-    const payload = await fn(ctx)
+    // *******
+    const payload = await fn(ctx) // 其实就是this.renderToResponse函数在这里的执行
     if (payload === null) {
       return
     }
     const { req, res } = ctx
-    const { body, type, revalidateOptions } = payload
+    const { body, type, revalidateOptions } = payload // 从payload中取出body属性
     if (!res.sent) {
       const { generateEtags, poweredByHeader, dev } = this.renderOpts
       if (dev) {
+        // 在开发中，我们不应该出于任何原因缓存页面。
         // In dev, we should not cache pages for any reason.
-        res.setHeader('Cache-Control', 'no-store, must-revalidate')
+        res.setHeader('Cache-Control', 'no-store, must-revalidate') // 开发中，不缓存
       }
-      return this.sendRenderResult(req, res, {
+      // 在next-server.ts下
+      return this.sendRenderResult(req, res, { // 发送渲染结果
         result: body,
         type,
         generateEtags,
@@ -957,7 +975,8 @@ export default abstract class Server<ServerOptions extends Options = Options> {
       return this.render404(req, res, parsedUrl)
     }
 
-    return this.pipe((ctx) => this.renderToResponse(ctx), {
+    // ***
+    return this.pipe((ctx) => this.renderToResponse(ctx) /** ***尤为重要*** */, {
       req,
       res,
       pathname,
@@ -1004,6 +1023,8 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     const isLikeServerless =
       typeof components.ComponentMod === 'object' &&
       typeof (components.ComponentMod as any).renderReqToHTML === 'function'
+
+    // 使用这些钩子做判断
     const hasServerProps = !!components.getServerSideProps
     let hasStaticPaths = !!components.getStaticPaths
 
@@ -1273,6 +1294,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
         ssgCacheKey === '/index' && pathname === '/' ? '/' : ssgCacheKey
     }
 
+    // 做渲染
     const doRender: () => Promise<ResponseCacheEntry | null> = async () => {
       let pageData: any
       let body: RenderResult | null
@@ -1320,8 +1342,10 @@ export default abstract class Server<ServerOptions extends Options = Options> {
           query: origQuery,
         })
 
+        // ***
         const renderOpts: RenderOpts = {
-          ...components,
+          ...components, // ***
+          // 这个components是在next-server.ts中的findPageComponents函数中loadComponents函数执行的结果
           ...opts,
           isDataReq,
           resolvedUrl,
@@ -1346,12 +1370,13 @@ export default abstract class Server<ServerOptions extends Options = Options> {
           renderOpts.supportsDynamicHTML = false
         }
 
-        const renderResult = await this.renderHTML(
+        // 渲染html
+        const renderResult = await this.renderHTML( // 在next-server.ts中
           req,
           res,
           pathname,
           query,
-          renderOpts
+          renderOpts // *** // 注意是上方的renderOpts常量
         )
 
         body = renderResult
@@ -1371,7 +1396,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
         if (!body) {
           return null
         }
-        value = { kind: 'PAGE', html: body, pageData }
+        value = { kind: 'PAGE', html: body, pageData } // 类别为PAGE也就是页面类别
       }
       return { revalidate: sprRevalidate, value }
     }
@@ -1488,11 +1513,12 @@ export default abstract class Server<ServerOptions extends Options = Options> {
           }
         }
 
-        const result = await doRender()
+        // 执行做渲染函数
+        const result = await doRender() // 上方的做渲染函数
         if (!result) {
           return null
         }
-        return {
+        return { // 返回信息对象
           ...result,
           revalidate:
             result.revalidate !== undefined
@@ -1590,7 +1616,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     } else if (cachedData.kind === 'IMAGE') {
       throw new Error('invariant SSG should not return an image cache value')
     } else {
-      return {
+      return { // 直接返回信息对象
         type: isDataReq ? (isAppPath ? 'rsc' : 'json') : 'html',
         body: isDataReq
           ? RenderResult.fromStatic(
@@ -1598,7 +1624,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
                 ? (cachedData.pageData as string)
                 : JSON.stringify(cachedData.pageData)
             )
-          : cachedData.html,
+          : cachedData.html, // 把html字符串直接作为body属性的值
         revalidateOptions,
       }
     }
@@ -1649,7 +1675,9 @@ export default abstract class Server<ServerOptions extends Options = Options> {
       page = appPaths[0]
     }
 
-    const result = await this.findPageComponents({
+    // 查找页面组件
+    // ***
+    const result = await this.findPageComponents({ // 在next-dev-server.ts中
       pathname: page,
       query,
       params: ctx.renderOpts.params || {},
@@ -1659,6 +1687,7 @@ export default abstract class Server<ServerOptions extends Options = Options> {
     })
     if (result) {
       try {
+        // 带有组件的渲染到响应中
         return await this.renderToResponseWithComponents(ctx, result)
       } catch (err) {
         const isNoFallbackError = err instanceof NoFallbackError
@@ -1683,8 +1712,9 @@ export default abstract class Server<ServerOptions extends Options = Options> {
       // Ensure a request to the URL /accounts/[id] will be treated as a dynamic
       // route correctly and not loaded immediately without parsing params.
       if (!isDynamicRoute(page)) {
-        const result = await this.renderPageComponent(ctx, bubbleNoFallback)
-        if (result !== false) return result
+        // 渲染页面组件
+        const result = await this.renderPageComponent(ctx, bubbleNoFallback) // ***
+        if (result !== false) return result // 返回结果
       }
 
       if (this.dynamicRoutes) {
