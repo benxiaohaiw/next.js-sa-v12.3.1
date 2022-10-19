@@ -36,7 +36,8 @@ export default class PageLoader {
   public routeLoader: RouteLoader
 
   constructor(buildId: string, assetPrefix: string) {
-    this.routeLoader = createRouteLoader(assetPrefix)
+    // 创建路由加载者实例对象
+    this.routeLoader = createRouteLoader(assetPrefix) // ***
 
     this.buildId = buildId
     this.assetPrefix = assetPrefix

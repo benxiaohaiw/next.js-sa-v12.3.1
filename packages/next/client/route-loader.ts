@@ -194,13 +194,17 @@ function resolvePromiseWithTimeout<T>(
       })
     }
 
+    // ***
+    // bug出现的场景只在生产环境下，这里就是问题分场景才出现的原因所在
+    // ******
+
     if (process.env.NODE_ENV !== 'development') {
       requestIdleCallback(() =>
         setTimeout(() => {
           if (!cancelled) {
             reject(err)
           }
-        }, ms)
+        }, ms) // 3800ms之后如果没有被取消掉，那么直接reject
       )
     }
   })
@@ -212,8 +216,8 @@ function resolvePromiseWithTimeout<T>(
 // Only cache this response as a last resort if we cannot eliminate all other
 // code branches that use the Build Manifest Callback and push them through
 // the Route Loader interface.
-export function getClientBuildManifest() {
-  if (self.__BUILD_MANIFEST) {
+export function getClientBuildManifest() { // 获取客户端构建清单
+  if (self.__BUILD_MANIFEST) { // 如果直接有了，那么直接返回
     return Promise.resolve(self.__BUILD_MANIFEST)
   }
 
@@ -221,14 +225,42 @@ export function getClientBuildManifest() {
     // Mandatory because this is not concurrent safe:
     const cb = self.__BUILD_MANIFEST_CB
     self.__BUILD_MANIFEST_CB = () => {
-      resolve(self.__BUILD_MANIFEST!)
+      resolve(self.__BUILD_MANIFEST!) // resolve
       cb && cb()
-    }
+    } // 在客户端构建清单里面的代码和这里的代码是在互相打配合
+    // ******
   })
+
+  /**
+   * 
+   * 这是在响应回来的html里面的script标签中的链接
+   * https://nextjs-hwpjy6--3000.local.webcontainer.io/_next/static/development/_buildManifest.js?ts=1666175496650
+   * 
+   * 下面就是响应的内容
+   * self.__BUILD_MANIFEST = {
+    __rewrites: {
+        beforeFiles: [],
+        afterFiles: [],
+        fallback: []
+    },
+    "/": ["static\u002Fchunks\u002Fpages\u002Findex.js"],
+    "/_error": ["static\u002Fchunks\u002Fpages\u002F_error.js"],
+    sortedPages: ["\u002F", "\u002F_app", "\u002F_error"]
+};
+self.__BUILD_MANIFEST_CB && self.__BUILD_MANIFEST_CB()
+
+注意：这个构建后的清单文件是在prepare阶段，也就是通过webpack打包生成的
+// 它对应着webpack配置中的plugin
+// 也就是在webpack-config.ts中引入的BuildManifestPlugin
+
+// 这个插件是在next/build/webpack/plugins/build-manifest-plugin.ts下
+
+   * 
+   */
 
   return resolvePromiseWithTimeout(
     onBuildManifest,
-    MS_MAX_IDLE_DELAY,
+    MS_MAX_IDLE_DELAY, // 3800ms
     markAssetError(new Error('Failed to load client build manifest'))
   )
 }
@@ -323,17 +355,19 @@ export function createRouteLoader(assetPrefix: string): RouteLoader {
   }
 
   return {
+    // ***当入口点注册成功的时候
     whenEntrypoint(route: string) {
-      return withFuture(route, entrypoints)
+      return withFuture(route, entrypoints) // ***
     },
+    // ***响应入口点
     onEntrypoint(route: string, execute: undefined | (() => unknown)) {
       ;(execute
         ? Promise.resolve()
-            .then(() => execute())
+            .then(() => execute()) // ***
             .then(
               (exports: any) => ({
-                component: (exports && exports.default) || exports,
-                exports: exports,
+                component: (exports && exports.default) || exports, // ***
+                exports: exports, // ***
               }),
               (err) => ({ error: err })
             )
@@ -342,8 +376,8 @@ export function createRouteLoader(assetPrefix: string): RouteLoader {
         const old = entrypoints.get(route)
         if (old && 'resolve' in old) {
           if (input) {
-            entrypoints.set(route, input)
-            old.resolve(input)
+            entrypoints.set(route, input) // ***
+            old.resolve(input) // ***
           }
         } else {
           if (input) {

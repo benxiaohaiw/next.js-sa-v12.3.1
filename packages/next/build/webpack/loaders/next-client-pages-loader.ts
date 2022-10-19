@@ -28,6 +28,8 @@ function nextClientPagesLoader(this: any) {
     // ***
     const stringifiedPage = JSON.stringify(page)
 
+    // window.__NEXT_P是一个数组
+    // 它的push函数被改写成register函数啦 ~
     return `
     (window.__NEXT_P = window.__NEXT_P || []).push([
       ${stringifiedPage},

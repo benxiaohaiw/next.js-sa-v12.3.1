@@ -37,11 +37,23 @@ window.next = {
   emitter,
 }
 
+// ***
+// dev下浏览器执行JS的入口文件
+// ***
+
 const webpackHMR = initWebpackHMR()
-initialize({ webpackHMR })
+
+// 1
+// ******
+// 先执行了initialize函数，做下初始化逻辑
+initialize({ webpackHMR }) // 
   .then(({ assetPrefix }) => {
     connectHMR({ assetPrefix, path: '/_next/webpack-hmr' })
 
+    // 2
+    // 混合函数是入口的核心
+    // 也就是把服务端返回的html和浏览器加载执行的JS（react）做一个混合功能，从而让浏览器中的react能够接管html在客户端的控制功能
+    // ***
     return hydrate({ beforeRender: displayContent }).then(() => {
       initOnDemandEntries()
 

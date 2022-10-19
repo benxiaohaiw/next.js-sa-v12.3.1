@@ -792,6 +792,10 @@ function handleHardNavigation({
   url: string
   router: Router
 }) {
+  // ******
+  // 确保我们不会触发硬导航到相同的 URL 因为这可能会以无限刷新结束
+  // 所以他在这里判断如果是相同的那么直接抛出错误，而不是统一的再做一个location.href逻辑
+  // ******
   // ensure we don't trigger a hard navigation to the same
   // URL as this can end up with an infinite refresh
   if (url === addBasePath(addLocale(router.asPath, router.locale))) {
@@ -799,7 +803,11 @@ function handleHardNavigation({
       `Invariant: attempted to hard navigate to the same URL ${url} ${location.href}`
     )
   }
-  window.location.href = url
+  // ******
+  window.location.href = url // 没有修复之前逻辑是不管是否相同的url，那么就会进行此操作
+  // 所以在之前就会进行无限刷新
+  // 但是现在判断了是相同的那么直接抛出错误
+  // ******
 }
 
 const getCancelledHandler = ({
@@ -906,7 +914,7 @@ export default class Router implements BaseRouter {
     }
   ) {
     // represents the current component key
-    const route = removeTrailingSlash(pathname)
+    const route = removeTrailingSlash(pathname) // 当前所访问的路径，比如 /
 
     // set up the component cache (by route keys)
     this.components = {}
@@ -914,16 +922,18 @@ export default class Router implements BaseRouter {
     // Otherwise, this cause issues when when going back and
     // come again to the errored page.
     if (pathname !== '/_error') {
-      this.components[route] = {
-        Component,
+      // 存储 / -> info对象
+      this.components[route] = { // info对象
+        Component, // / -> 对应的组件
         initial: true,
-        props: initialProps,
+        props: initialProps, // 随页面带来的props
         err,
         __N_SSG: initialProps && initialProps.__N_SSG,
         __N_SSP: initialProps && initialProps.__N_SSP,
       }
     }
 
+    // 存储App组件
     this.components['/_app'] = {
       Component: App as ComponentType,
       styleSheets: [
@@ -942,12 +952,16 @@ export default class Router implements BaseRouter {
       isDynamicRoute(pathname) && self.__NEXT_DATA__.autoExport
 
     this.basePath = process.env.__NEXT_ROUTER_BASEPATH || ''
-    this.sub = subscription
+
+    // ***
+    // 创建router时传入的subscription函数
+    this.sub = subscription // ******
+    
     this.clc = null
     this._wrapApp = wrapApp
     // make sure to ignore extra popState in safari on navigating
     // back from external site
-    this.isSsr = true
+    this.isSsr = true // 是
     this.isLocaleDomain = false
     this.isReady = !!(
       self.__NEXT_DATA__.gssp ||
@@ -968,6 +982,7 @@ export default class Router implements BaseRouter {
       )
     }
 
+    // 存储当前路由状态信息
     this.state = {
       route,
       pathname,
@@ -1013,7 +1028,9 @@ export default class Router implements BaseRouter {
         })
       }
 
-      window.addEventListener('popstate', this.onPopState)
+      // ******
+      window.addEventListener('popstate', this.onPopState) // ***监听popstate事件***
+      // ******
 
       // enable custom scroll restoration handling when available
       // otherwise fallback to browser's default handling
@@ -1143,7 +1160,7 @@ export default class Router implements BaseRouter {
    * @param as masks `url` for the browser
    * @param options object you can define `shallow` and other options
    */
-  push(url: Url, as?: Url, options: TransitionOptions = {}) {
+  push(url: Url, as?: Url, options: TransitionOptions = {}) { // push函数
     if (process.env.__NEXT_SCROLL_RESTORATION) {
       // TODO: remove in the future when we update history before route change
       // is complete, as the popstate event should handle this capture.
@@ -1158,7 +1175,7 @@ export default class Router implements BaseRouter {
       }
     }
     ;({ url, as } = prepareUrlAs(this, url, as))
-    return this.change('pushState', url, as, options)
+    return this.change('pushState', url, as, options) // 也是执行change函数
   }
 
   /**
@@ -1169,7 +1186,7 @@ export default class Router implements BaseRouter {
    */
   replace(url: Url, as?: Url, options: TransitionOptions = {}) {
     ;({ url, as } = prepareUrlAs(this, url, as))
-    return this.change('replaceState', url, as, options)
+    return this.change('replaceState', url, as, options) // 执行change函数
   }
 
   private async change(
@@ -1186,12 +1203,13 @@ export default class Router implements BaseRouter {
     // WARNING: `_h` is an internal option for handing Next.js client-side
     // hydration. Your app should _never_ use this property. It may change at
     // any time without notice.
-    const isQueryUpdating = (options as any)._h
+    const isQueryUpdating = (options as any)._h // 传过来的是值1，表明是query要更新
     let shouldResolveHref =
       isQueryUpdating ||
       (options as any)._shouldResolveHref ||
       parsePath(url).pathname === parsePath(as).pathname
 
+    // 准备下一状态
     const nextState = {
       ...this.state,
     }
@@ -1366,8 +1384,15 @@ export default class Router implements BaseRouter {
       return true
     }
 
+    // ******
+    // 解析要去的url
     let parsed = parseRelativeUrl(url)
     let { pathname, query } = parsed
+
+    // ***
+    // https://www.yuque.com/lanbitouw/povrtq/gied92#J5Jra
+    // 这个bug的问题就出现在这里
+    // ***
 
     // The build manifest needs to be loaded before auto-static dynamic pages
     // get their query parameters to allow ensuring they can be parsed properly
@@ -1375,14 +1400,16 @@ export default class Router implements BaseRouter {
     let pages: string[], rewrites: any
     try {
       ;[pages, { __rewrites: rewrites }] = await Promise.all([
-        this.pageLoader.getPageList(),
-        getClientBuildManifest(),
-        this.pageLoader.getMiddleware(),
+        this.pageLoader.getPageList(), // 通过pageLoader获取page列表
+        getClientBuildManifest(), // 获取客户端构建清单 - bug的问题就出现在这里（3800ms之后报错了）
+        this.pageLoader.getMiddleware(), // 通过pageLoader获取中间件
       ])
     } catch (err) {
       // If we fail to resolve the page list or client-build manifest, we must
       // do a server-side transition:
-      handleHardNavigation({ url: as, router: this })
+      handleHardNavigation({ url: as, router: this }) // 当前对这个https://www.yuque.com/lanbitouw/povrtq/gied92#J5Jra
+      // bug已经进行了修复
+      // ******
       return false
     }
 
@@ -1544,6 +1571,8 @@ export default class Router implements BaseRouter {
     }
 
     try {
+      // ******
+      // 获取要去url对应的路由信息
       let routeInfo = await this.getRouteInfo({
         route,
         pathname,
@@ -1695,7 +1724,14 @@ export default class Router implements BaseRouter {
         }
       }
 
+      // ******
+      // 触发beforeHistoryChange钩子函数
       Router.events.emit('beforeHistoryChange', as, routeProps)
+
+      // ******
+      // 改变状态
+      // 其实就是改变浏览器地址栏中的地址为要去的url
+      // ***
       this.changeState(method, url, as, options)
 
       if (
@@ -1718,7 +1754,7 @@ export default class Router implements BaseRouter {
       const resetScroll = shouldScroll ? { x: 0, y: 0 } : null
 
       // the new state that the router gonna set
-      const upcomingRouterState = {
+      const upcomingRouterState = { // ****** 即将到来的路由器状态 - 新状态
         ...nextState,
         route,
         pathname,
@@ -1726,7 +1762,7 @@ export default class Router implements BaseRouter {
         asPath: cleanedAs,
         isFallback: false,
       }
-      const upcomingScrollState = forcedScroll ?? resetScroll
+      const upcomingScrollState = forcedScroll ?? resetScroll // 即将到来的滚动状态
 
       // for query updates we can skip it if the state is unchanged and we don't
       // need to scroll
@@ -1738,11 +1774,13 @@ export default class Router implements BaseRouter {
         !localeChange &&
         compareRouterStates(upcomingRouterState, this.state)
 
-      if (!canSkipUpdating) {
+      if (!canSkipUpdating) { // 不可跳过更新时
+        // ***
+        // set设置
         await this.set(
-          upcomingRouterState,
-          routeInfo,
-          upcomingScrollState
+          upcomingRouterState, // 即将到来的路由器状态
+          routeInfo, // 即将到来的路由信息
+          upcomingScrollState  // 即将到来的滚动状态
         ).catch((e) => {
           if (e.cancelled) error = error || e
           else throw e
@@ -1762,16 +1800,22 @@ export default class Router implements BaseRouter {
         }
 
         if (!isQueryUpdating) {
+          // 触发routeChangeComplete钩子函数
           Router.events.emit('routeChangeComplete', as, routeProps)
         }
 
         // A hash mark # is the optional last part of a URL
         const hashRegex = /#.+$/
         if (shouldScroll && hashRegex.test(as)) {
+
+          // ******
+          // 做滚动
+          // ******
           this.scrollToHash(as)
         }
       }
 
+      // 返回true
       return true
     } catch (err) {
       if (isError(err) && err.cancelled) {
@@ -2125,10 +2169,15 @@ export default class Router implements BaseRouter {
   ): Promise<void> {
     this.state = state
 
+    // ******
+    // 执行创建router时传入的subscription函数
+    // 大致逻辑如下
+    // 和初次挂载逻辑是一致的，相同的，只是最后不是混合，而是render
+    // 执行render函数 -> doRender -> renderReactElement -> ReactDOM.render
     return this.sub(
-      data,
-      this.components['/_app'].Component as AppComponent,
-      resetScroll
+      data, // 即将到来的路由信息
+      this.components['/_app'].Component as AppComponent, // App组件
+      resetScroll // 即将到来的滚动状态
     )
   }
 
@@ -2384,6 +2433,7 @@ export default class Router implements BaseRouter {
     return this.state.pathname
   }
 
+  // 从state中返回query
   get query(): ParsedUrlQuery {
     return this.state.query
   }

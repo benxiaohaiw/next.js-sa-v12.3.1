@@ -92,6 +92,7 @@ let CachedComponent: React.ComponentType
   // @ts-ignore
 ;(self as any).__next_require__ = __webpack_require__
 
+// Container组件
 class Container extends React.Component<{
   fn: (err: Error, info?: any) => void
 }> {
@@ -99,6 +100,8 @@ class Container extends React.Component<{
     this.props.fn(componentErr, info)
   }
 
+  // ******
+  // 组件已挂载钩子函数
   componentDidMount() {
     this.scrollToHash()
 
@@ -109,35 +112,53 @@ class Container extends React.Component<{
     // - if middleware matches the current page (may have rewrite params)
     // - if rewrites in next.config.js match (may have rewrite params)
     if (
-      router.isSsr &&
+      // 假设我们现在访问的是 /
+      /**
+       * 页面中的__NEXT_DATA__
+       * {"props":{"pageProps":{}},"page":"/","query":{},"buildId":"development","nextExport":true,"autoExport":true,"isFallback":false,"scriptLoader":[]}
+       * 
+       */
+      router.isSsr && // true
       // We don't update for 404 requests as this can modify
       // the asPath unexpectedly e.g. adding basePath when
       // it wasn't originally present
-      initialData.page !== '/404' &&
-      initialData.page !== '/_error' &&
-      (initialData.isFallback ||
-        (initialData.nextExport &&
-          (isDynamicRoute(router.pathname) ||
-            location.search ||
+      initialData.page !== '/404' && // true
+      initialData.page !== '/_error' && // true
+      (initialData.isFallback || // false
+        (initialData.nextExport && // 由上面得知为true
+          // /\/\[[^/]+?\](?=\/|$)/.test(router.pathname)
+          (isDynamicRoute(router.pathname) || // false
+            location.search || // '' -> false
             process.env.__NEXT_HAS_REWRITES ||
-            initialMatchesMiddleware)) ||
-        (initialData.props &&
-          initialData.props.__N_SSG &&
-          (location.search ||
+            initialMatchesMiddleware)) || // false
+        (initialData.props && // true
+          initialData.props.__N_SSG && // false
+          (location.search || // '' -> false
             process.env.__NEXT_HAS_REWRITES ||
-            initialMatchesMiddleware)))
+            initialMatchesMiddleware))) // false
     ) {
+      // 举例：在https://www.yuque.com/lanbitouw/povrtq/gied92#J5Jra
+      // 中的这个bug问题在这里来看，上面的判断对应location.search是有值的，所以整体为true
+      // 所以就需要在挂载期间为这个已导出的页面更新query，也就是location.search属性
+      // 就是?xxx=xxx这个东东
+
+      // ***
+      // 为已导出的页面在挂载期间更新query
+      // ***
       // update query on mount for exported pages
       router
         .replace(
-          router.pathname +
-            '?' +
+          // 就拿上面那个bug举例比如/?foo=foo&bar=bar
+          // ok啦在这里在组件挂载之后执行了router.replace函数（准确的来说有query的出现那么就会执行这里的replace逻辑）
+          // 具体详细逻辑在next/shared/lib/router/router.ts中，可以查看
+          router.pathname + // /
+            '?' + // ?
             String(
               assign(
-                urlQueryToSearchParams(router.query),
-                new URLSearchParams(location.search)
+                urlQueryToSearchParams(router.query), // 
+                new URLSearchParams(location.search) // 
               )
-            ),
+            ), // /?foo=foo&bar=bar
           asPath,
           {
             // @ts-ignore
@@ -175,18 +196,24 @@ class Container extends React.Component<{
     setTimeout(() => el.scrollIntoView(), 0)
   }
 
+  // 容器组件渲染函数
   render() {
     if (process.env.NODE_ENV === 'production') {
-      return this.props.children
+      return this.props.children // 生产模式下直接返回children
     } else {
       const {
         ReactDevOverlay,
       } = require('next/dist/compiled/@next/react-dev-overlay/dist/client')
       return <ReactDevOverlay>{this.props.children}</ReactDevOverlay>
+      // 开发模式下通过ReactDevOverlay组件包裹一下啦 ~
     }
   }
 }
 
+
+// 1
+// ***
+// 先执行初始化逻辑的操作
 export async function initialize(opts: { webpackHMR?: any } = {}): Promise<{
   assetPrefix: string
 }> {
@@ -195,10 +222,12 @@ export async function initialize(opts: { webpackHMR?: any } = {}): Promise<{
     webpackHMR = opts.webpackHMR
   }
 
+  // 初始化数据就是随html字符串带过来的__NEXT_DATA__中的内容一个json字符串，然后转为对象
   initialData = JSON.parse(
     document.getElementById('__NEXT_DATA__')!.textContent!
   )
-  window.__NEXT_DATA__ = initialData
+
+  window.__NEXT_DATA__ = initialData // 挂在window上
 
   defaultLocale = initialData.defaultLocale
   const prefix: string = initialData.assetPrefix || ''
@@ -268,27 +297,32 @@ export async function initialize(opts: { webpackHMR?: any } = {}): Promise<{
     initScriptLoader(initialData.scriptLoader)
   }
 
+  // 创建一个页面加载者实例对象
   pageLoader = new PageLoader(initialData.buildId, prefix)
 
+  // 注册
   const register: RegisterFn = ([r, f]) =>
-    pageLoader.routeLoader.onEntrypoint(r, f)
+    pageLoader.routeLoader.onEntrypoint(r, f) // 响应入口点
+  // ***
   if (window.__NEXT_P) {
     // Defer page registration for another tick. This will increase the overall
     // latency in hydrating the page, but reduce the total blocking time.
-    window.__NEXT_P.map((p) => setTimeout(() => register(p), 0))
+    window.__NEXT_P.map((p) => setTimeout(() => register(p), 0)) // ***延时注册***
   }
   window.__NEXT_P = []
-  ;(window.__NEXT_P as any).push = register
+  ;(window.__NEXT_P as any).push = register // 
 
   headManager = initHeadManager()
   headManager.getIsSsr = () => {
     return router.isSsr
   }
 
+  // 获取id为__next的div元素，它是整个应用的根节点
   appElement = document.getElementById('__next')
   return { assetPrefix: prefix }
 }
 
+// 这个函数就是返回<App {...appProps} />
 function renderApp(App: AppComponent, appProps: AppProps) {
   return <App {...appProps} />
 }
@@ -296,7 +330,7 @@ function renderApp(App: AppComponent, appProps: AppProps) {
 function AppContainer({
   children,
 }: React.PropsWithChildren<{}>): React.ReactElement {
-  return (
+  return ( // 使用到了Container组件
     <Container
       fn={(error) =>
         // TODO: Fix disabled eslint rule
@@ -311,7 +345,7 @@ function AppContainer({
           <ImageConfigContext.Provider
             value={process.env.__NEXT_IMAGE_OPTS as any as ImageConfigComplete}
           >
-            {children}
+            {children/** 在这里放置了children属性 */}
           </ImageConfigContext.Provider>
         </HeadManagerContext.Provider>
       </RouterContext.Provider>
@@ -548,12 +582,14 @@ function Root({
 }
 
 function doRender(input: RenderRouteInfo): Promise<any> {
+  // App组件、/对应的index组件
   let { App, Component, props, err }: RenderRouteInfo = input
   let styleSheets: StyleSheetTuple[] | undefined =
     'initial' in input ? undefined : input.styleSheets
   Component = Component || lastAppProps.Component
   props = props || lastAppProps.props
 
+  // 准备好app属性
   const appProps: AppProps = {
     ...props,
     Component,
@@ -702,11 +738,16 @@ function doRender(input: RenderRouteInfo): Promise<any> {
 
   onStart()
 
+  // 准备好元素
   const elem: JSX.Element = (
     <>
       <Head callback={onHeadCommit} />
-      <AppContainer>
-        {renderApp(App, appProps)}
+      {/** 那么最重要的就是Container组件中做了什么事情 ~ */}
+      <AppContainer>{/** 该组件内使用到了Container组件 */}
+        {renderApp(App, appProps)/** 执行renderApp函数，传入App组件以及上方准备好的app属性 */}
+        {/** renderApp函数就是返回<App {...appProps} />
+         * 这样就能清楚_app.js中能够通过props接收到Component组件的原因啦 - 它就是在这里做的)
+         */}
         <Portal type="next-route-announcer">
           <RouteAnnouncer />
         </Portal>
@@ -714,16 +755,20 @@ function doRender(input: RenderRouteInfo): Promise<any> {
     </>
   )
 
+  // appElement就是在初始化函数中获取的__next节点元素，它是作为根节点的
+  // 开始渲染react元素啦 ~
   // We catch runtime errors using componentDidCatch which will trigger renderError
-  renderReactElement(appElement!, (callback) => (
+  renderReactElement(appElement!, (callback) => ( // 返回Root组件
     <Root callbacks={[callback, onRootCommit]}>
       {process.env.__NEXT_STRICT_MODE ? (
         <React.StrictMode>{elem}</React.StrictMode>
       ) : (
-        elem
+        elem // 作为children
       )}
     </Root>
   ))
+  // 这个函数逻辑就是根据情况选择使用ReactDOM.hydrate、render还是hydrateRoot啦
+  // 参数就是这里第二个参数函数执行返回的react ele、要操作的根节点容器
 
   return renderPromise
 }
@@ -735,6 +780,7 @@ async function render(renderingProps: RenderRouteInfo): Promise<void> {
   }
 
   try {
+    // 做渲染
     await doRender(renderingProps)
   } catch (err) {
     const renderErr = getProperError(err)
@@ -753,17 +799,55 @@ async function render(renderingProps: RenderRouteInfo): Promise<void> {
   }
 }
 
+// 2
+// 入口 - 混合函数
 export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
   let initialErr = initialData.err
 
+
+//   /***/ "./node_modules/next/dist/build/webpack/loaders/next-client-pages-loader.js?absolutePagePath=%2Fhome%2Fprojects%2Fnextjs-hwpjy6%2Fpages%2Findex.js&page=%2F!":
+// /*!*******************************************************************************************************************************************************************!*\
+//   !*** ./node_modules/next/dist/build/webpack/loaders/next-client-pages-loader.js?absolutePagePath=%2Fhome%2Fprojects%2Fnextjs-hwpjy6%2Fpages%2Findex.js&page=%2F! ***!
+//   \*******************************************************************************************************************************************************************/
+// /***/ (function(module, __unused_webpack_exports, __webpack_require__) {
+
+// eval(__webpack_require__.ts("\n    (window.__NEXT_P = window.__NEXT_P || []).push([\n      \"/\",\n      function () {\n        return __webpack_require__(/*! ./pages/index.js */ \"./pages/index.js\");\n      }\n    ]);\n    if(true) {\n      module.hot.dispose(function () {\n        window.__NEXT_P.push([\"/\"])\n      });\n    }\n  //# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiLi9ub2RlX21vZHVsZXMvbmV4dC9kaXN0L2J1aWxkL3dlYnBhY2svbG9hZGVycy9uZXh0LWNsaWVudC1wYWdlcy1sb2FkZXIuanM/YWJzb2x1dGVQYWdlUGF0aD0lMkZob21lJTJGcHJvamVjdHMlMkZuZXh0anMtaHdwank2JTJGcGFnZXMlMkZpbmRleC5qcyZwYWdlPSUyRiEuanMiLCJtYXBwaW5ncyI6IjtBQUNBO0FBQ0E7QUFDQTtBQUNBLGVBQWUsbUJBQU8sQ0FBQywwQ0FBa0I7QUFDekM7QUFDQTtBQUNBLE9BQU8sSUFBVTtBQUNqQixNQUFNLFVBQVU7QUFDaEI7QUFDQSxPQUFPO0FBQ1A7QUFDQSIsInNvdXJjZXMiOlsid2VicGFjazovL19OX0UvPzg4NTgiXSwic291cmNlc0NvbnRlbnQiOlsiXG4gICAgKHdpbmRvdy5fX05FWFRfUCA9IHdpbmRvdy5fX05FWFRfUCB8fCBbXSkucHVzaChbXG4gICAgICBcIi9cIixcbiAgICAgIGZ1bmN0aW9uICgpIHtcbiAgICAgICAgcmV0dXJuIHJlcXVpcmUoXCIuL3BhZ2VzL2luZGV4LmpzXCIpO1xuICAgICAgfVxuICAgIF0pO1xuICAgIGlmKG1vZHVsZS5ob3QpIHtcbiAgICAgIG1vZHVsZS5ob3QuZGlzcG9zZShmdW5jdGlvbiAoKSB7XG4gICAgICAgIHdpbmRvdy5fX05FWFRfUC5wdXNoKFtcIi9cIl0pXG4gICAgICB9KTtcbiAgICB9XG4gICJdLCJuYW1lcyI6W10sInNvdXJjZVJvb3QiOiIifQ==\n//# sourceURL=webpack-internal:///./node_modules/next/dist/build/webpack/loaders/next-client-pages-loader.js?absolutePagePath=%2Fhome%2Fprojects%2Fnextjs-hwpjy6%2Fpages%2Findex.js&page=%2F!\n"));
+
+// /***/ }),
+
+
+// 已确定是next-client-pages-loader.js这个loader里面加的window.__NEXT_P这个变量
+// 它是一个数组，其次它的push方法已被改为上面初始化方法中的register函数
+// 这个注册函数就是其实就是把模块导出的内容通过pageLoader.routeLoader的onEntryPoint函数响应出去
+// 这样通过routeLoader的whenEntrypoint函数返回的promise就能够resolve，此时就能够收到模块导出的内容啦
+// 就是这样一个原理机制
+
+// 和whenEntrypoint、onEntrypoint在打配合
+
+  /**
+   * 
+   * cat .next/static/chunks/pages/index.js
+   * 
+   * ...
+   * 中间有部分内容就是上面注释那部分
+   * ...
+   * 
+   * 
+   */
+
   try {
+    // 通过页面加载者实例对象获取到app入口点
     const appEntrypoint = await pageLoader.routeLoader.whenEntrypoint('/_app')
     if ('error' in appEntrypoint) {
       throw appEntrypoint.error
     }
 
+    // ***
+    // exports: { default: xxx, xxx: xxx }
+    // ***
+    // 从app入口点中拿到默认暴露的app组件，component就是default，exports就是上面的那个exports
     const { component: app, exports: mod } = appEntrypoint
-    CachedApp = app as AppComponent
+    CachedApp = app as AppComponent // 断言为AppComponent
     if (mod && mod.reportWebVitals) {
       onPerfEntry = ({
         id,
@@ -802,6 +886,7 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
       }
     }
 
+    // 比如/ -> 那么就拿到index入口点
     const pageEntrypoint =
       // The dev server fails to serve script assets when there's a hydration
       // error, so we need to skip waiting for the entrypoint.
@@ -811,6 +896,8 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
     if ('error' in pageEntrypoint) {
       throw pageEntrypoint.error
     }
+
+    // 从index入口点内拿到默认暴露的组件
     CachedComponent = pageEntrypoint.component
 
     if (process.env.NODE_ENV !== 'production') {
@@ -829,7 +916,7 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
   if (process.env.NODE_ENV === 'development') {
     const {
       getServerError,
-    } = require('next/dist/compiled/@next/react-dev-overlay/dist/client')
+    } = require('next/dist/compiled/@next/react-dev-overlay/dist/client') // 只在开发环境中引入这个react-dev-overlay依赖
     // Server-side runtime errors need to be re-thrown on the client-side so
     // that the overlay is rendered.
     if (initialErr) {
@@ -864,6 +951,7 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
     await window.__NEXT_PRELOADREADY(initialData.dynamicIds)
   }
 
+  // 创建前端路由器 - 接管控制浏览器前端路由（那肯定监听popstate事件啦 ~ 等）
   router = createRouter(initialData.page, initialData.query, asPath, {
     initialProps: initialData.props,
     pageLoader,
@@ -872,7 +960,11 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
     wrapApp,
     err: initialErr,
     isFallback: Boolean(initialData.isFallback),
-    subscription: (info, App, scroll) =>
+    // ******
+    // subscription函数尤为重要
+    subscription: (info, App, scroll) => // 即将到来的路由信息 App组件 即将到来的滚动状态
+      // 和初次挂载逻辑是一致的，相同的，只是最后不是混合，而是render
+      // 执行render函数 -> doRender -> renderReactElement -> ReactDOM.render
       render(
         Object.assign<
           {},
@@ -892,17 +984,19 @@ export async function hydrate(opts?: { beforeRender?: () => Promise<void> }) {
 
   initialMatchesMiddleware = await router._initialMatchesMiddlewarePromise
 
+  // 准备渲染上下文
   const renderCtx: RenderRouteInfo = {
-    App: CachedApp,
+    App: CachedApp, // _app.js中默认暴露的组件
     initial: true,
-    Component: CachedComponent,
+    Component: CachedComponent, // index.js中默认暴露的组件 - 假设我们正在访问/，那么/ -> pages/index.js
     props: initialData.props,
     err: initialErr,
   }
 
   if (opts?.beforeRender) {
-    await opts.beforeRender()
+    await opts.beforeRender() // 执行在渲染之前函数
   }
 
-  render(renderCtx)
+  // 开始渲染
+  render(renderCtx) // 渲染上下文中已拿到_app.js中默认暴露的组件和index.js中默认暴露的组件
 }

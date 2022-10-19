@@ -146,11 +146,11 @@ export function useRouter(): NextRouter {
 export function createRouter(
   ...args: ConstructorParameters<typeof Router>
 ): Router {
-  singletonRouter.router = new Router(...args)
+  singletonRouter.router = new Router(...args) // 创建前端路由器实例对象
   singletonRouter.readyCallbacks.forEach((cb) => cb())
   singletonRouter.readyCallbacks = []
 
-  return singletonRouter.router
+  return singletonRouter.router // 返回实例对象
 }
 
 /**

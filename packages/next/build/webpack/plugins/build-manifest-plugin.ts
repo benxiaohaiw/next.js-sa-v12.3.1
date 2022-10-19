@@ -248,9 +248,18 @@ export default class BuildManifestPlugin {
       }
 
       if (!this.isDevFallback) {
+        // ******
+        // this.buildId -> development
         const clientManifestPath = `${CLIENT_STATIC_FILES_PATH}/${this.buildId}/_buildManifest.js`
 
+        // ******
+        // 给资源对象添加资源
+        // 最终由webpack帮我们进行生成并写入
+        // ******
         assets[clientManifestPath] = new sources.RawSource(
+          // ***
+          // 添加这段代码字符串 - 互相打配合呢
+          // ******
           `self.__BUILD_MANIFEST = ${generateClientManifest(
             compiler,
             compilation,
@@ -265,14 +274,16 @@ export default class BuildManifestPlugin {
   }
 
   apply(compiler: webpack.Compiler) {
+    // 在webpack的make阶段注册个钩子函数
     compiler.hooks.make.tap('NextJsBuildManifest', (compilation) => {
+      // 在每次编译的processAssets阶段注册钩子函数
       compilation.hooks.processAssets.tap(
         {
           name: 'NextJsBuildManifest',
           stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONS,
         },
         (assets: any) => {
-          this.createAssets(compiler, compilation, assets)
+          this.createAssets(compiler, compilation, assets) // 创建资源
         }
       )
     })

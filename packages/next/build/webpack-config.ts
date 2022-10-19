@@ -1947,6 +1947,9 @@ export default async function getBaseWebpackConfig(
             !!config.experimental.allowMiddlewareResponseBody,
         }),
       isClient &&
+        // ***
+        // 产生构建清单的这样一个插件
+        // ******
         new BuildManifestPlugin({ // ***client编译创建了一个构建清单插件***
           buildId,
           rewrites,
