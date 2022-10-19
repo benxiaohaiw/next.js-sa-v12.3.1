@@ -122,6 +122,11 @@ const nextDev: cliCommand = (argv) => {
         // Finalize server bootup:
         await app.prepare() // 准备
         // ***
+        // 在prepare这个环节进行了尤为重要的一步：使用webpack进行[多编译者]打包，并且是watch的
+        // 在next-dev-server.ts中的prepare函数中创建了HotReloader类实例对象
+        // 且执行了它的start函数
+        // 编译就是在start函数中进行的 - 所以重要的逻辑就在hot-reloader.ts中
+        // ***
       })
       .catch((err) => {
         if (err.code === 'EADDRINUSE') {
@@ -149,7 +154,9 @@ const nextDev: cliCommand = (argv) => {
       })
   }
 
+  // ['next.config.js', 'next.config.mjs']
   for (const CONFIG_FILE of CONFIG_FILES) {
+    // watch配置文件
     watchFile(path.join(dir, CONFIG_FILE), (cur: any, prev: any) => {
       if (cur.size > 0 || prev.size > 0) {
         console.log(

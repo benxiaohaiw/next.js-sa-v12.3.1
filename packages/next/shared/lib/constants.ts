@@ -71,6 +71,7 @@ export const MIDDLEWARE_REACT_LOADABLE_MANIFEST =
   'middleware-react-loadable-manifest'
 
 // static/runtime/main.js
+// ***
 export const CLIENT_STATIC_FILES_RUNTIME_MAIN = `main` // ***
 export const CLIENT_STATIC_FILES_RUNTIME_MAIN_APP = `${CLIENT_STATIC_FILES_RUNTIME_MAIN}-app`
 // static/runtime/react-refresh.js

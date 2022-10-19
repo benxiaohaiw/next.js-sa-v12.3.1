@@ -160,6 +160,8 @@ interface ChildEntry extends EntryType {
   parentEntries: Set<string>
 }
 
+// 这是重要的、有用的
+// ***
 export const entries: {
   /**
    * The key composed of the compiler name and the page. For example:
@@ -194,7 +196,7 @@ class Invalidator {
     return this.rebuildAgain.size > 0
   }
 
-  invalidate(compilerKeys: typeof COMPILER_KEYS = COMPILER_KEYS): void {
+  invalidate(compilerKeys: typeof COMPILER_KEYS = COMPILER_KEYS): void { // ['client', 'server']
     for (const key of compilerKeys) {
       // If there's a current build is processing, we won't abort it by invalidating.
       // (If aborted, it'll cause a client side hard reload)
@@ -206,7 +208,15 @@ class Invalidator {
         continue
       }
 
-      this.multiCompiler.compilers[COMPILER_INDEXES[key]].watching?.invalidate()
+      // ***
+      // 这里是重要的，也就是请求url来临时，webpack会去重新编译的原因所在
+      // 就是因为这里进行设置webpack对应的编译者比如这里的client、server两大编译者手动对结果进行失效的原因
+      // https://webpack.js.org/api/node/#invalidate-watching
+      // Using watching.invalidate, you can manually invalidate the current compiling round, without stopping the watch process:
+      // 使用 watching.invalidate，您可以手动使当前编译轮次无效，而无需停止 watch 进程：
+      // ***
+      // ***
+      this.multiCompiler.compilers[COMPILER_INDEXES[key]].watching?.invalidate() // ***
       this.building.add(key)
     }
   }
@@ -215,6 +225,7 @@ class Invalidator {
     this.building.add(compilerKey)
   }
 
+  // 重置逻辑
   public doneBuilding() {
     const rebuild: typeof COMPILER_KEYS = []
     for (const key of COMPILER_KEYS) {
@@ -370,6 +381,7 @@ async function findPagePathData(
   }
 }
 
+// 当索取、需要入口处理者
 export function onDemandEntryHandler({
   maxInactiveAge,
   multiCompiler,
@@ -387,7 +399,7 @@ export function onDemandEntryHandler({
   rootDir: string
   appDir?: string
 }) {
-  invalidator = new Invalidator(multiCompiler)
+  invalidator = new Invalidator(multiCompiler) // ***
 
   const startBuilding = (compilation: webpack.Compilation) => {
     const compilationName = compilation.name as any as CompilerNameValues
@@ -418,6 +430,9 @@ export function onDemandEntryHandler({
     return pagePaths
   }
 
+  // ***
+  // 注册done钩子函数
+  // ***
   multiCompiler.hooks.done.tap('NextJsOnDemandEntries', (multiStats) => {
     if (invalidator.shouldRebuildAll()) {
       return invalidator.doneBuilding()
@@ -458,6 +473,10 @@ export function onDemandEntryHandler({
       doneCallbacks!.emit(page)
     }
 
+    // ***
+    // 这个很重要 - 清除、重置逻辑
+    // ***
+    // 每次编译结束都会清除、重置
     invalidator.doneBuilding()
   })
 
@@ -554,7 +573,7 @@ export function onDemandEntryHandler({
 
   return {
     async ensurePage({
-      page,
+      page, // '/'
       clientOnly,
       appPaths = null,
     }: {
@@ -570,6 +589,16 @@ export function onDemandEntryHandler({
       }, stalledTime * 1000)
 
       try {
+
+        /**
+         * 
+         *  {
+         *    absolutePagePath: "/home/projects/nextjs-hwpjy6/pages/index.js"
+              bundlePath: "pages/index"
+              page: "/"
+            }
+         * 
+         */
         const pagePathData = await findPagePathData(
           rootDir,
           page,
@@ -578,9 +607,11 @@ export function onDemandEntryHandler({
           appDir
         )
 
+        // false
         const isInsideAppDir =
           !!appDir && pagePathData.absolutePagePath.startsWith(appDir)
 
+        // ***
         const addEntry = (
           compilerType: CompilerNameValues
         ): {
@@ -608,6 +639,7 @@ export function onDemandEntryHandler({
             }
           }
 
+          // 添加entries变量中
           entries[entryKey] = {
             type: EntryTypes.ENTRY,
             appPaths,
@@ -622,10 +654,21 @@ export function onDemandEntryHandler({
           return {
             entryKey: entryKey,
             newEntry: true,
-            shouldInvalidate: true,
+            shouldInvalidate: true, // ***
+            // 应该失效
           }
         }
 
+        /**
+         * 
+         *  {
+         *    rsc: "server"
+              runtime: undefined
+              ssg: false
+              ssr: false
+         *  }
+         * 
+         */
         const staticInfo = await getPageStaticInfo({
           pageFilePath: pagePathData.absolutePagePath,
           nextConfig,
@@ -636,6 +679,8 @@ export function onDemandEntryHandler({
         const isServerComponent =
           isInsideAppDir && staticInfo.rsc !== RSC_MODULE_TYPES.client
 
+        // ***
+        // // 取决于页面类型去运行xxx
         await runDependingOnPageType({
           page: pagePathData.page,
           pageRuntime: staticInfo.runtime,
@@ -644,10 +689,12 @@ export function onDemandEntryHandler({
             if (isServerComponent || isInsideAppDir) {
               return
             }
-            added.set(COMPILER_NAMES.client, addEntry(COMPILER_NAMES.client))
+            // 执行
+            added.set(COMPILER_NAMES.client, addEntry(COMPILER_NAMES.client)) // ***
           },
           onServer: () => {
-            added.set(COMPILER_NAMES.server, addEntry(COMPILER_NAMES.server))
+            // 也是执行的
+            added.set(COMPILER_NAMES.server, addEntry(COMPILER_NAMES.server)) // ***
             const edgeServerEntry = `${COMPILER_NAMES.edgeServer}${pagePathData.page}`
             if (entries[edgeServerEntry]) {
               // Runtime switched from edge to server
@@ -667,6 +714,8 @@ export function onDemandEntryHandler({
           },
         })
 
+        // 所以也就有client、server啦 ~
+
         const addedValues = [...added.values()]
         const entriesThatShouldBeInvalidated = addedValues.filter(
           (entry) => entry.shouldInvalidate
@@ -674,6 +723,10 @@ export function onDemandEntryHandler({
         const hasNewEntry = addedValues.some((entry) => entry.newEntry)
 
         if (hasNewEntry) {
+          // ***
+          // 产生logger
+          // wait  - compiling / (client and server)...
+          // ***
           reportTrigger(
             !clientOnly && hasNewEntry
               ? `${pagePathData.page} (client and server)`
@@ -681,6 +734,7 @@ export function onDemandEntryHandler({
           )
         }
 
+        // 应该是失效的有
         if (entriesThatShouldBeInvalidated.length > 0) {
           const invalidatePromises = entriesThatShouldBeInvalidated.map(
             ({ entryKey }) => {
@@ -694,7 +748,12 @@ export function onDemandEntryHandler({
               })
             }
           )
-          invalidator.invalidate([...added.keys()])
+          // 这里是关键
+          // 失效
+          // 失效
+          // ['client', 'server']
+          // 失效
+          invalidator.invalidate([...added.keys()]) // ***
           await Promise.all(invalidatePromises)
         }
       } finally {

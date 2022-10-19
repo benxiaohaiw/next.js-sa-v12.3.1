@@ -685,6 +685,10 @@ export default class DevServer extends Server {
     })
     await super.prepare()
     await this.addExportPathMapRoutes()
+    // ***
+    // 在start函数中进行webpack的编译工作
+    // 这是重点且是核心的
+    // ***
     await this.hotReloader.start(true) // 执行start函数
     await this.startWatcher()
     this.setDevReady!()
@@ -1352,8 +1356,9 @@ export default class DevServer extends Server {
       throw new WrappedBuildError(compilationErr)
     }
     try {
-      await this.hotReloader!.ensurePage({
-        page: pathname,
+      // 确保页面
+      await this.hotReloader!.ensurePage({ // ***
+        page: pathname, // '/'
         appPaths,
         clientOnly: false,
       })

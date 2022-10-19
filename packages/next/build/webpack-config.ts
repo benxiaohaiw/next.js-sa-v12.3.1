@@ -517,6 +517,7 @@ export async function resolveExternal(
   return { res, isEsm }
 }
 
+// 获取基础的webpack配置
 export default async function getBaseWebpackConfig(
   dir: string,
   {
@@ -551,6 +552,8 @@ export default async function getBaseWebpackConfig(
     middlewareMatchers?: MiddlewareMatcher[]
   }
 ): Promise<webpack.Configuration> {
+
+  // 判断是是什么编译类型
   const isClient = compilerType === COMPILER_NAMES.client
   const isEdgeServer = compilerType === COMPILER_NAMES.edgeServer
   const isNodeServer = compilerType === COMPILER_NAMES.server
@@ -748,7 +751,7 @@ export default async function getBaseWebpackConfig(
                 ).replace(/\\/g, '/'),
             }
           : {}),
-        [CLIENT_STATIC_FILES_RUNTIME_MAIN]:
+        [CLIENT_STATIC_FILES_RUNTIME_MAIN]: // ***'main' // 在next/shared/lib/constansts.ts中设置的常量***
           `./` +
           path
             .relative(
@@ -756,6 +759,7 @@ export default async function getBaseWebpackConfig(
               path.join(
                 NEXT_PROJECT_ROOT_DIST_CLIENT,
                 dev ? `next-dev.js` : 'next.js'
+                // ***开发下就是next-dev.js为入口啦 ~***
               )
             )
             .replace(/\\/g, '/'),
@@ -810,35 +814,37 @@ export default async function getBaseWebpackConfig(
   const customDocumentAliases: { [key: string]: string[] } = {}
   const customRootAliases: { [key: string]: string[] } = {}
 
+  // ******
   if (dev) {
-    customAppAliases[`${PAGES_DIR_ALIAS}/_app`] = [
+    customAppAliases[`${PAGES_DIR_ALIAS}/_app`] = [ // PAGES_DIR_ALIAS -> private-next-pages // ***在next/lib/constants.ts中定义的***
       ...(pagesDir
         ? pageExtensions.reduce((prev, ext) => {
             prev.push(path.join(pagesDir, `_app.${ext}`))
             return prev
-          }, [] as string[])
+          }, [] as string[]) // ******
         : []),
-      'next/dist/pages/_app.js',
+      'next/dist/pages/_app.js', // ***
     ]
     customAppAliases[`${PAGES_DIR_ALIAS}/_error`] = [
       ...(pagesDir
         ? pageExtensions.reduce((prev, ext) => {
             prev.push(path.join(pagesDir, `_error.${ext}`))
             return prev
-          }, [] as string[])
+          }, [] as string[]) // ******
         : []),
-      'next/dist/pages/_error.js',
+      'next/dist/pages/_error.js', // ***
     ]
     customDocumentAliases[`${PAGES_DIR_ALIAS}/_document`] = [
       ...(pagesDir
         ? pageExtensions.reduce((prev, ext) => {
             prev.push(path.join(pagesDir, `_document.${ext}`))
             return prev
-          }, [] as string[])
+          }, [] as string[]) // ******
         : []),
-      'next/dist/pages/_document.js',
+      'next/dist/pages/_document.js', // ***
     ]
   }
+  // ******
 
   const mainFieldsPerCompiler: Record<typeof compilerType, string[]> = {
     [COMPILER_NAMES.server]: ['main', 'module'],
@@ -846,15 +852,27 @@ export default async function getBaseWebpackConfig(
     [COMPILER_NAMES.edgeServer]: ['browser', 'module', 'main'],
   }
 
+  // ***
+  // ******
   const resolveConfig = {
     // Disable .mjs for node_modules bundling
     extensions: isNodeServer
       ? ['.js', '.mjs', '.tsx', '.ts', '.jsx', '.json', '.wasm']
       : ['.mjs', '.js', '.tsx', '.ts', '.jsx', '.json', '.wasm'],
+    
+    // ***
+    // https://webpack.js.org/configuration/resolve/#resolvemodules
+    // Tell webpack what directories should be searched when resolving modules.
+    // 告诉 webpack 在解析模块时应该搜索哪些目录。
+    // ******
     modules: [
-      'node_modules',
+      // ***
+      // ***
+      'node_modules', // ******
       ...nodePathList, // Support for NODE_PATH environment variable
     ],
+    // https://webpack.js.org/configuration/resolve/#resolvealias
+    // 创建别名以更轻松地导入或需要某些模块。例如，给一堆常用的 src/ 文件夹起别名：
     alias: {
       // Alias next/dist imports to next/dist/esm assets,
       // let this alias hit before `next` alias.
@@ -887,10 +905,12 @@ export default async function getBaseWebpackConfig(
       'styled-jsx/style$': require.resolve(`styled-jsx/style`),
       'styled-jsx$': require.resolve(`styled-jsx`),
 
-      ...customAppAliases,
+      // ***
+      ...customAppAliases, // ******
       ...customErrorAlias,
-      ...customDocumentAliases,
+      ...customDocumentAliases, // ******
       ...customRootAliases,
+      // ***
 
       ...(pagesDir ? { [PAGES_DIR_ALIAS]: pagesDir } : {}),
       ...(appDir
@@ -1013,6 +1033,7 @@ export default async function getBaseWebpackConfig(
   const crossOrigin = config.crossOrigin
   const looseEsmExternals = config.experimental?.esmExternals === 'loose'
 
+  // 处理外部的函数
   async function handleExternals(
     context: string,
     request: string,
@@ -1063,10 +1084,14 @@ export default async function getBaseWebpackConfig(
         return `commonjs ${request}`
       }
 
+      // 拦截以private-next-pages等为开头的url request
+      // 返回一个undefined
+      // https://webpack.js.org/configuration/externals/#function
+      // 意为着不将导入外部化了
       const notExternalModules =
         /^(?:private-next-pages\/|next\/(?:dist\/pages\/|(?:app|document|link|image|legacy\/image|constants|dynamic|script|navigation|headers)$)|string-hash|private-next-rsc-mod-ref-proxy$)/
       if (notExternalModules.test(request)) {
-        return
+        return // 返回了一个undefined
       }
     }
 
@@ -1217,10 +1242,11 @@ export default async function getBaseWebpackConfig(
       return path.join(resolved, '../target.css')
     })
 
+  // ***
   let webpackConfig: webpack.Configuration = {
     parallelism: Number(process.env.NEXT_WEBPACK_PARALLELISM) || undefined,
     // @ts-ignore
-    externals:
+    externals: // ***
       isClient || isEdgeServer
         ? // make sure importing "next" is handled gracefully for client
           // bundles in case a user imported types and it wasn't removed
@@ -1242,7 +1268,7 @@ export default async function getBaseWebpackConfig(
                 ]
               : []),
           ]
-        : target !== 'serverless'
+        : target !== 'serverless' // ***
         ? [
             ({
               context,
@@ -1271,7 +1297,7 @@ export default async function getBaseWebpackConfig(
                 ) => void
               ) => void
             }) =>
-              handleExternals(
+              handleExternals( // ***执行上方的handleExternals函数
                 context,
                 request,
                 dependencyType,
@@ -1442,9 +1468,13 @@ export default async function getBaseWebpackConfig(
         },
       ],
     },
-    context: dir,
+
+    // ***
+    context: dir, // ***当前工程目录路径***
+    // ***
+
     // Kept as function to be backwards compatible
-    entry: async () => {
+    entry: async () => { // ***
       return {
         ...(clientEntries ? clientEntries : {}),
         ...entrypoints,
@@ -1455,9 +1485,9 @@ export default async function getBaseWebpackConfig(
       // we must set publicPath to an empty value to override the default of
       // auto which doesn't work in IE11
       publicPath: `${config.assetPrefix || ''}/_next/`,
-      path: !dev && isNodeServer ? path.join(outputPath, 'chunks') : outputPath,
+      path: !dev && isNodeServer ? path.join(outputPath, 'chunks') : outputPath, // ***
       // On the server we don't use hashes
-      filename:
+      filename: // ***
         isNodeServer || isEdgeServer
           ? dev || isEdgeServer
             ? `[name].js`
@@ -1471,7 +1501,7 @@ export default async function getBaseWebpackConfig(
       hotUpdateMainFilename:
         'static/webpack/[fullhash].[runtime].hot-update.json',
       // This saves chunks with the name given via `import()`
-      chunkFilename:
+      chunkFilename: // ***
         isNodeServer || isEdgeServer
           ? '[name].js'
           : `static/chunks/${isDevFallback ? 'fallback/' : ''}${
@@ -1484,13 +1514,23 @@ export default async function getBaseWebpackConfig(
       hashDigestLength: 16,
     },
     performance: false,
-    resolve: resolveConfig,
+    // ******
+    resolve: resolveConfig, // ***
+    // ******
+    // https://webpack.js.org/configuration/resolve/#resolveloader
+    // 这组选项与上面设置的 resolve 属性相同，但仅用于解析 webpack 的loader程序包。
+    // This set of options is identical to the resolve property set above, but is used only to resolve webpack's loader packages.
     resolveLoader: {
+      // ***
+      // Next.js 提供的loaders
+      // ***
       // The loaders Next.js provides
       alias: [
         'error-loader',
         'next-swc-loader',
-        'next-client-pages-loader',
+        'next-client-pages-loader', // ***next/build/webpack/loaders/next-client-pages-loader.ts来去处理
+        // next-client-pages-loader?absolutePagePath=%2Fhome%2Fprojects%2Fnextjs-hwpjy6%2Fpages%2Findex.js&page=%2F!这样的url请求的
+        // ***
         'next-image-loader',
         'next-serverless-loader',
         'next-style-loader',
@@ -1506,17 +1546,22 @@ export default async function getBaseWebpackConfig(
         'next-font-loader',
       ].reduce((alias, loader) => {
         // using multiple aliases to replace `resolveLoader.modules`
-        alias[loader] = path.join(__dirname, 'webpack', 'loaders', loader)
+        // ***
+        alias[loader] = path.join(__dirname, 'webpack', 'loaders', loader) // ***
+        // 拼接loader的路径地址
+        // ***
 
         return alias
       }, {} as Record<string, string>),
+      // ******
       modules: [
-        'node_modules',
+        'node_modules', // ******
         ...nodePathList, // Support for NODE_PATH environment variable
       ],
       plugins: [],
     },
-    module: {
+    // ***
+    module: { // ***
       rules: [
         ...(hasAppDir && !isClient && !isEdgeServer
           ? [
@@ -1614,14 +1659,17 @@ export default async function getBaseWebpackConfig(
               },
             ]
           : []),
+        // ***
         {
-          test: /\.(js|cjs|mjs)$/,
-          issuerLayer: WEBPACK_LAYERS.api,
+          test: /\.(js|cjs|mjs)$/, // ***
+          issuerLayer: WEBPACK_LAYERS.api, // 'api'
           parser: {
             // Switch back to normal URL handling
-            url: true,
+            // 切换回正常的 URL 处理
+            url: true, // ***
           },
         },
+        // ***
         {
           oneOf: [
             {
@@ -1883,7 +1931,7 @@ export default async function getBaseWebpackConfig(
         new ServerlessPlugin(),
       (isNodeServer || isEdgeServer) &&
         new PagesManifestPlugin({
-          serverless: isLikeServerless,
+          serverless: isLikeServerless, // ***server编译创建了一个页面清单插件***
           dev,
           isEdgeRuntime: isEdgeServer,
           appDirEnabled: hasAppDir,
@@ -1899,7 +1947,7 @@ export default async function getBaseWebpackConfig(
             !!config.experimental.allowMiddlewareResponseBody,
         }),
       isClient &&
-        new BuildManifestPlugin({
+        new BuildManifestPlugin({ // ***client编译创建了一个构建清单插件***
           buildId,
           rewrites,
           isDevFallback,
@@ -2572,12 +2620,15 @@ export default async function getBaseWebpackConfig(
     )
   }
 
+  // ***
   // Backwards compat for `main.js` entry key
   // and setup of dependencies between entries
   // we can't do that in the initial entry for
   // backward-compat reasons
   const originalEntry: any = webpackConfig.entry
   if (typeof originalEntry !== 'undefined') {
+
+    // ***
     const updatedEntry = async () => {
       const entry: webpack.EntryObject =
         typeof originalEntry === 'function'
@@ -2597,6 +2648,9 @@ export default async function getBaseWebpackConfig(
           originalFile,
         ]
       }
+      // ***
+      // 删除以main.js为key的键值对
+      // ***
       delete entry['main.js']
 
       for (const name of Object.keys(entry)) {

@@ -215,7 +215,8 @@ export default class HotReloader {
     this.edgeServerStats = null
     this.serverPrevDocumentHash = null
 
-    this.config = config
+    // ***
+    this.config = config // ***
     this.hasReactRoot = !!process.env.__NEXT_REACT_ROOT
     this.hasServerComponents = this.hasReactRoot && !!this.appDir
     this.previewProps = previewProps
@@ -402,15 +403,20 @@ export default class HotReloader {
   private async getWebpackConfig(span: Span) {
     const webpackConfigSpan = span.traceChild('get-webpack-config')
 
+    // ['tsx', 'ts', 'jsx', 'js']
     const pageExtensions = this.config.pageExtensions
 
     return webpackConfigSpan.traceAsyncFn(async () => {
+
+      // 默认什么都没有配置得到的结果
+      // ['/_app.js', null]
       const pagePaths = !this.pagesDir
         ? ([] as (string | null)[])
         : await webpackConfigSpan
             .traceChild('get-page-paths')
             .traceAsyncFn(() =>
               Promise.all([
+                // pagesDir -> 工程目录/pages
                 findPageFile(this.pagesDir!, '/_app', pageExtensions, false),
                 findPageFile(
                   this.pagesDir!,
@@ -420,7 +426,16 @@ export default class HotReloader {
                 ),
               ])
             )
-
+      
+      /**
+       * 
+        { 
+          /_app: "private-next-pages/_app"
+          /_document: "private-next-pages/_document"
+          /_error: "private-next-pages/_error"
+        }
+       * 
+       */
       this.pagesMapping = webpackConfigSpan
         .traceChild('create-pages-mapping')
         .traceFn(() =>
@@ -435,10 +450,37 @@ export default class HotReloader {
           })
         )
 
+      /**
+       * 
+       * 
+       * {
+              "client": {
+                  "pages/_app": [
+                      "next-client-pages-loader?absolutePagePath=private-next-pages%2F_app&page=%2F_app!",
+                      "/home/projects/nextjs-hwpjy6/node_modules/next/dist/client/router.js"
+                  ],
+                  "pages/_error": "next-client-pages-loader?absolutePagePath=private-next-pages%2F_error&page=%2F_error!"
+              },
+              "server": {
+                  "pages/_app": [
+                      "private-next-pages/_app"
+                  ],
+                  "pages/_error": [
+                      "private-next-pages/_error"
+                  ],
+                  "pages/_document": [
+                      "private-next-pages/_document"
+                  ]
+              },
+              "edgeServer": {}
+          }
+       * 
+       * 
+       */
       const entrypoints = await webpackConfigSpan
         .traceChild('create-entrypoints')
         .traceAsyncFn(() =>
-          createEntrypoints({
+          createEntrypoints({ // next/build/entries.ts
             appDir: this.appDir,
             buildId: this.buildId,
             config: this.config,
@@ -457,31 +499,33 @@ export default class HotReloader {
         dev: true,
         buildId: this.buildId,
         config: this.config,
-        hasReactRoot: this.hasReactRoot,
-        pagesDir: this.pagesDir,
+        hasReactRoot: this.hasReactRoot, // true
+        pagesDir: this.pagesDir, // "/home/projects/nextjs-hwpjy6/pages"
         rewrites: this.rewrites,
         runWebpackSpan: this.hotReloaderSpan,
-        appDir: this.appDir,
+        appDir: this.appDir, // undefined
       }
 
+      // 生成webpack配置
       return webpackConfigSpan
         .traceChild('generate-webpack-config')
         .traceAsyncFn(() =>
           Promise.all([
+            // 顺序在这里是很重要的
             // order is important here
-            getBaseWebpackConfig(this.dir, {
+            getBaseWebpackConfig(this.dir, { // next/build/webpack-config.ts
               ...commonWebpackOptions,
-              compilerType: COMPILER_NAMES.client,
+              compilerType: COMPILER_NAMES.client, // 'client'
               entrypoints: entrypoints.client,
             }),
             getBaseWebpackConfig(this.dir, {
               ...commonWebpackOptions,
-              compilerType: COMPILER_NAMES.server,
+              compilerType: COMPILER_NAMES.server, // 'server'
               entrypoints: entrypoints.server,
             }),
             getBaseWebpackConfig(this.dir, {
               ...commonWebpackOptions,
-              compilerType: COMPILER_NAMES.edgeServer,
+              compilerType: COMPILER_NAMES.edgeServer, // 'edge-server'
               entrypoints: entrypoints.edgeServer,
             }),
           ])
@@ -547,29 +591,73 @@ export default class HotReloader {
     const startSpan = this.hotReloaderSpan.traceChild('start')
     startSpan.stop() // Stop immediately to create an artificial parent span
 
+    // 第一次也就是在next-dev-server.ts中执行所传入的是true
     if (initial) {
       await this.clean(startSpan)
       // Ensure distDir exists before writing package.json
-      await fs.mkdir(this.distDir, { recursive: true })
+      await fs.mkdir(this.distDir, { recursive: true }) // 确保.next目录是存在的
 
       const distPackageJsonPath = join(this.distDir, 'package.json')
       // Ensure commonjs handling is used for files in the distDir (generally .next)
       // Files outside of the distDir can be "type": "module"
-      await fs.writeFile(distPackageJsonPath, '{"type": "commonjs"}')
+      await fs.writeFile(distPackageJsonPath, '{"type": "commonjs"}') // 写入.next/package.json文件
     }
+
+    // ***
+    // 获取webpack配置
+    // 产出的具体的webpack的配置可以在// next/build/webpack-config.ts下getBaseWebpackConfig中具体去查看详细的配置逻辑过程
+    // ***
     this.activeConfigs = await this.getWebpackConfig(startSpan)
 
     for (const config of this.activeConfigs) {
       const defaultEntry = config.entry
+      // ***
       config.entry = async (...args) => {
         // @ts-ignore entry is always a function
-        const entrypoints = await defaultEntry(...args)
+        // ***
+        // 这里一直都是默认的入口点，一成不变的
+        // ***
+        const entrypoints = await defaultEntry(...args) // ***
         const isClientCompilation = config.name === COMPILER_NAMES.client
         const isNodeServerCompilation = config.name === COMPILER_NAMES.server
         const isEdgeServerCompilation =
           config.name === COMPILER_NAMES.edgeServer
 
         await Promise.all(
+
+          // ************
+          /// 取得是entries，它是在server/dev/on-demand-entry-handler.ts中的
+          // ************
+          // 
+          /**
+           * 
+           * {
+           * clien/
+           * 
+           * {
+                "type": 0,
+                "appPaths": null,
+                "absolutePagePath": "/home/projects/nextjs-hwpjy6/pages/index.js",
+                "request": "/home/projects/nextjs-hwpjy6/pages/index.js",
+                "bundlePath": "pages/index",
+                "dispose": false,
+                "lastActiveTime": 1666101599299
+            }
+
+            server/
+            {
+                "type": 0,
+                "appPaths": null,
+                "absolutePagePath": "/home/projects/nextjs-hwpjy6/pages/index.js",
+                "request": "/home/projects/nextjs-hwpjy6/pages/index.js",
+                "bundlePath": "pages/index",
+                "dispose": false,
+                "lastActiveTime": 1666101599299
+            }
+      }
+           * 
+           * 
+           */// 特别注意：这里取得是entries，它是在server/dev/on-demand-entry-handler.ts下导出的
           Object.keys(entries).map(async (entryKey) => {
             const entryData = entries[entryKey]
             const { bundlePath, dispose } = entryData
@@ -660,6 +748,8 @@ export default class HotReloader {
                     hasAppDir,
                   })
                 } else {
+                  // server/dev/on-demand-entry-handler.ts下的entries
+                  // ***
                   entries[entryKey].status = BUILDING
                   entrypoints[bundlePath] = finalizeEntrypoint({
                     name: bundlePath,
@@ -675,6 +765,7 @@ export default class HotReloader {
               onServer: () => {
                 // TODO-APP: verify if child entry should support.
                 if (!isNodeServerCompilation || !isEntry) return
+                // ***
                 entries[entryKey].status = BUILDING
                 let relativeRequest = relative(
                   config.context!,
@@ -712,19 +803,156 @@ export default class HotReloader {
             })
           })
         )
+        /**
+         * 
+         * 
+         *
+          client
+          {
+            amp: {import: './node_modules/next/dist/client/dev/amp-dev'}
+            main: {import: './node_modules/next/dist/client/next-dev.js'} // ***
+            pages/_app: {dependOn: 'main', import: [
+              "next-client-pages-loader?absolutePagePath=private-next-pages%2F_app&page=%2F_app!",
+              "/home/projects/nextjs-hwpjy6/node_modules/next/dist/client/router.js"
+            ]}
+            pages/_error: {dependOn: 'pages/_app', import: 'next-client-pages-loader?absolutePagePath=private-next-pages%2F_error&page=%2F_error!'}
+            react-refresh: {import: '/home/projects/nextjs-hwpjy6/node_modules/next/dis…ompiled/@next/react-refresh-utils/dist/runtime.js'}
+          }
+          ❯ npm run dev // 注意：此时没有打开浏览器访问该地址的操作
+          $ next dev
+          ready - started server on 0.0.0.0:3000, url: http://localhost:3000
+          info  - Disabled SWC as replacement for Babel because of custom Babel configuration ".babelrc" https://nextjs.org/docs/messages/swc-disabled
+          info  - Using external babel configuration from /home/projects/nextjs-hwpjy6/.babelrc
+          event - compiled client and server successfully in 4.1s (173 modules)
+          ❯ ls .next/static/chunks/pages/
+          _app.js    _error.js
 
+          // --- 他这里实现了一个按需要进行编译的功能 -> 就是请求到来比如/ -> 这次就多了些模块，比如.next/static/chunks/pages/index.js
+          // 这个是在next-dev-server.ts中的findPageComponents函数中的this.hotReloader!.ensurePage中做的功能逻辑，详细查看server/dev/on-demand-entry-handler.ts详细说明
+          // ***
+
+          server
+          {
+            pages/_app: {publicPath: undefined, runtime: 'webpack-runtime', layer: undefined, import: ["private-next-pages/_app"]} // ***这是在webpack-config.ts中的customAppAliases和customDocumentAliases在webpack配置对象的resolve.alias中定义的
+            // 再配合resolve.modules属性
+            // ***其实就是工程目录/pages/_app.js - 具体查看webpack-config.ts下的customAppAliases变量***
+            // 以工程目录下的文件为最高优先级，最后才是next/dist/pages/_app.js这个的，是不一样的
+            pages/_document: {publicPath: undefined, runtime: 'webpack-runtime', layer: undefined, import: ["private-next-pages/_document"]}
+            // ***其实就是next/dist/pages/_document.js***
+            pages/_error: {publicPath: undefined, runtime: 'webpack-runtime', layer: undefined, import: ["private-next-pages/_error"]}
+          }
+
+          edge-server
+          {}
+
+
+
+          当发出 req /
+          client
+          {
+            ..., // 还是上面那些默认的入口点
+            pages/index: { // 这个是根据请求url / 来去产生的
+    "dependOn": "pages/_app",
+    "import": "next-client-pages-loader?absolutePagePath=%2Fhome%2Fprojects%2Fnextjs-hwpjy6%2Fpages%2Findex.js&page=%2F!" // 这个是在entries.ts中的getClientEntry函数中生成的
+    // ***是在webpack-config.ts中的webpack配置对象里面的resolveLoader.alias中添加的next-client-pages-loader这个loader来去处理的
+}
+          }
+
+          server
+          {
+            ...,
+            pages/index: {
+              publicPath: undefined,
+    "runtime": "webpack-runtime",
+    "import": "./pages/index.js" // 依据工程目录下的相对路径
+    // 工程路径/pages/index.js -> "import": "./pages/index.js"
+    // 工程路径/pages/index.jsx -> "import": "./pages/index.jsx"
+    // ***
+    // ***因为在getBaseWebpackConfig函数中的webpack配置里面有一个参数是context，它的值就是当前工程路径***
+    // 所以这也就说明了.next/server/pages/index.js文件出现的原因所在
+    // ***
+    layer: undefined
+}
+          }
+
+
+         * 
+         * 
+         */
         return entrypoints
       }
     }
+
+    // ***
+    // dev
+    // client output.path -> .next - output.chunkFilename -> static/chunks/[name].js - output.filename -> static/chunks/[name].js
+    // server output.path -> .next/server - output.chunkFilename -> [name].js - output.filename -> [name].js
+
+    // dev下对于一些清单（xxxManifest.json）是通过***webpack plugin***来去做的，具体查看next/build/webpack-config.ts内的详细配置
+    // ***
 
     // Enable building of client compilation before server compilation in development
     // @ts-ignore webpack 5
     this.activeConfigs.parallelism = 1
 
+    /**
+     * 
+     * 
+     * dev /
+     * 
+     * 响应html
+     * 
+     *  <!DOCTYPE html>
+        <html>
+            <head>
+                <script src="/.localservice@runtime.3e4f172269cb19a250be0dfdff1ab657cb850d0e.js"></script>
+                <style data-next-hide-fouc="true">
+                    body {
+                        display: none
+                    }
+                </style>
+                <noscript data-next-hide-fouc="true">
+                    <style>
+                        body {
+                            display: block
+                        }
+                    </style>
+                </noscript>
+                <meta charSet="utf-8"/>
+                <meta name="viewport" content="width=device-width"/>
+                <title>Create Next App</title>
+                <meta name="next-head-count" content="3"/>
+                <noscript data-n-css=""></noscript>
+                <script defer="" nomodule="" src="/_next/static/chunks/polyfills.js?ts=1666095276958"></script>
+                <script src="/_next/static/chunks/webpack.js?ts=1666095276958" defer=""></script>
+                <script src="/_next/static/chunks/main.js?ts=1666095276958" defer=""></script>
+                <script src="/_next/static/chunks/pages/_app.js?ts=1666095276958" defer=""></script>
+                <script src="/_next/static/chunks/pages/index.js?ts=1666095276958" defer=""></script>
+                <script src="/_next/static/development/_buildManifest.js?ts=1666095276958" defer=""></script>
+                <script src="/_next/static/development/_ssgManifest.js?ts=1666095276958" defer=""></script>
+                <noscript id="__next_css__DO_NOT_USE__"></noscript>
+            </head>
+            <body>
+                <div id="__next">
+                    <div class="Home_container__bCOhY"></div>
+                </div>
+                <script src="/_next/static/chunks/react-refresh.js?ts=1666095276958"></script>
+                <script id="__NEXT_DATA__" type="application/json">
+                    {"props":{"pageProps":{}},"page":"/","query":{},"buildId":"development","nextExport":true,"autoExport":true,"isFallback":false,"scriptLoader":[]}
+                </script>
+            </body>
+        </html>
+
+     * 
+     * 
+     */
+
+    // 执行webpack函数，传入配置
     this.multiCompiler = webpack(
       this.activeConfigs
     ) as unknown as webpack.MultiCompiler
 
+    // 观察这些编译者们
     watchCompilers(
       this.multiCompiler.compilers[0],
       this.multiCompiler.compilers[1],
@@ -983,13 +1211,18 @@ export default class HotReloader {
       }
     )
 
+    // 对多编译者使用webpack hot middleware
     this.webpackHotMiddleware = new WebpackHotMiddleware(
       this.multiCompiler.compilers
     )
 
     let booted = false
 
+    // ***
     this.watcher = await new Promise((resolve) => {
+      // ***
+      // 执行watch函数
+      // ***
       const watcher = this.multiCompiler?.watch(
         // @ts-ignore webpack supports an array of watchOptions when using a multiCompiler
         this.activeConfigs.map((config) => config.watchOptions!),
@@ -1003,6 +1236,8 @@ export default class HotReloader {
       )
     })
 
+    // ***
+    // 当索取、需要入口处理者
     this.onDemandEntries = onDemandEntryHandler({
       multiCompiler: this.multiCompiler,
       pagesDir: this.pagesDir,
@@ -1098,8 +1333,9 @@ export default class HotReloader {
     if (error) {
       return Promise.reject(error)
     }
-    return this.onDemandEntries?.ensurePage({
-      page,
+    // 在start函数里面赋值
+    return this.onDemandEntries?.ensurePage({ // 确保页面
+      page, // '/'
       clientOnly,
       appPaths,
     }) as any

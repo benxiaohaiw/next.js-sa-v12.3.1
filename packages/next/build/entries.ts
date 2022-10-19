@@ -280,7 +280,8 @@ export function getClientEntry(opts: {
     page: opts.page,
   }
 
-  const pageLoader = `next-client-pages-loader?${stringify(loaderOptions)}!`
+  // ***
+  const pageLoader = `next-client-pages-loader?${stringify(loaderOptions)}!` // ***
 
   // Make sure next/router is a dependency of _app or else chunk splitting
   // might cause the router to not be able to load causing hydration
@@ -290,6 +291,7 @@ export function getClientEntry(opts: {
     : pageLoader
 }
 
+// 取决于页面类型去运行xxx
 export async function runDependingOnPageType<T>(params: {
   onClient: () => T
   onEdgeServer: () => T
@@ -328,10 +330,12 @@ export async function runDependingOnPageType<T>(params: {
     return
   }
 
+  // ***
   await Promise.all([params.onClient(), params.onServer()])
   return
 }
 
+// 创建入口点
 export async function createEntrypoints(params: CreateEntrypointsParams) {
   const {
     config,

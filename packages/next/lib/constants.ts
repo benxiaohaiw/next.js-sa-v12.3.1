@@ -9,7 +9,7 @@ export const MIDDLEWARE_LOCATION_REGEXP = `(?:src/)?${MIDDLEWARE_FILENAME}`
 
 // Because on Windows absolute paths in the generated code can break because of numbers, eg 1 in the path,
 // we have to use a private alias
-export const PAGES_DIR_ALIAS = 'private-next-pages'
+export const PAGES_DIR_ALIAS = 'private-next-pages' // ***
 export const DOT_NEXT_ALIAS = 'private-dot-next'
 export const ROOT_DIR_ALIAS = 'private-next-root-dir'
 export const APP_DIR_ALIAS = 'private-next-app-dir'
@@ -69,7 +69,7 @@ export const SERVER_RUNTIME: Record<string, ServerRuntime> = {
   nodejs: 'nodejs',
 }
 
-export const WEBPACK_LAYERS = {
+export const WEBPACK_LAYERS = { // ***
   server: 'sc_server',
   client: 'sc_client',
   api: 'api',
